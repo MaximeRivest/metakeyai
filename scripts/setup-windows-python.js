@@ -19,9 +19,28 @@ const unzipper = require('unzipper');
     return;
   }
 
-  const version = '3.11.11';
-  const fileName = `python-${version}-embed-amd64.zip`;
-  const downloadUrl = `https://www.python.org/ftp/python/${version}/${fileName}`;
+  // Python 3.11.x embeddable zips stopped at 3.11.9; attempt latest first then fall back
+  const candidateVersions = ['3.11.11', '3.11.10', '3.11.9', '3.11.8', '3.11.5', '3.11.4'];
+
+  let version = null;
+  let downloadUrl = null;
+  let fileName = null;
+
+  for (const v of candidateVersions) {
+    const testUrl = `https://www.python.org/ftp/python/${v}/python-${v}-embed-amd64.zip`;
+    const status = await urlExists(testUrl);
+    if (status) {
+      version = v;
+      downloadUrl = testUrl;
+      fileName = `python-${v}-embed-amd64.zip`;
+      break;
+    }
+  }
+
+  if (!downloadUrl) {
+    throw new Error('No embeddable Python 3.11 zip found (Python site removed binaries).');
+  }
+
   const resourcesDir = path.join(process.cwd(), 'resources', 'binaries', 'windows', 'python');
 
   if (fs.existsSync(path.join(resourcesDir, 'python.exe'))) {
@@ -53,4 +72,14 @@ const unzipper = require('unzipper');
 
   fs.unlinkSync(tmpZip);
   console.log(`✅ Embedded Python ready at ${resourcesDir}`);
-})(); 
+})();
+
+async function urlExists(url) {
+  return new Promise((resolve) => {
+    const req = https.get(url, { method: 'HEAD' }, (res) => {
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.end();
+  });
+} 

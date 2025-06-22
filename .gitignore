@@ -125,3 +125,8 @@ Thumbs.db
 # API keys and sensitive config (if you add config files)
 config/local.json
 secrets.json
+
+# Python build artifacts
+build-py-spec/
+build-py-work/
+resources/python/metakeyai-server

@@ -143,53 +143,22 @@ export class PythonEnvironmentManager extends EventEmitter {
   }
 
   private async installDependencies(): Promise<void> {
-    const requirementsPath = path.join(process.cwd(), 'requirements.txt');
+    console.log('📦 Installing Python dependencies...');
     
-    if (!fs.existsSync(requirementsPath)) {
-      console.log('📝 No requirements.txt found, skipping dependency installation');
-      return;
+    // Check if we have a pyproject.toml (UV project)
+    const pyprojectPath = path.join(process.cwd(), 'pyproject.toml');
+    if (fs.existsSync(pyprojectPath)) {
+      console.log('🚀 Found pyproject.toml, using UV for dependency management');
+      try {
+        await this.runUVCommand(['sync']);
+        console.log('✅ Dependencies installed with UV');
+        return;
+      } catch (error) {
+        console.log('⚠️ UV installation failed:', error);
+      }
     }
 
-    return new Promise((resolve, reject) => {
-      // Use uv pip install for faster dependency resolution
-      const installProcess = spawn(this.uvPath, [
-        'pip', 'install',
-        '-r', requirementsPath,
-        '--python', this.pythonPath
-      ], {
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      installProcess.stdout?.on('data', (data) => {
-        const output = data.toString();
-        stdout += output;
-        console.log('📦', output.trim());
-      });
-
-      installProcess.stderr?.on('data', (data) => {
-        const output = data.toString();
-        stderr += output;
-        console.log('📦', output.trim());
-      });
-
-      installProcess.on('close', (code) => {
-        if (code === 0) {
-          console.log('✅ Dependencies installed successfully');
-          resolve();
-        } else {
-          console.error('❌ Failed to install dependencies');
-          console.error('STDERR:', stderr);
-          reject(new Error(`Dependency installation failed with exit code ${code}: ${stderr}`));
-        }
-      });
-
-      installProcess.on('error', (error) => {
-        reject(error);
-      });
-    });
+    console.log('📝 No pyproject.toml found, skipping dependency installation');
   }
 
   private async initializeSystemPython(): Promise<PythonEnvInfo> {

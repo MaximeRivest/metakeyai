@@ -9,44 +9,35 @@ async function setupPythonEnvironment() {
   console.log('🐍 Setting up Python environment for MetaKeyAI...');
   
   const appPath = process.cwd();
-  const envPath = path.join(appPath, 'python-env');
-  const requirementsPath = path.join(appPath, 'requirements.txt');
+  const venvPath = path.join(appPath, 'python-env');
   
-  // Check if environment already exists
-  if (fs.existsSync(envPath)) {
+  // Check if virtual environment already exists
+  if (fs.existsSync(venvPath)) {
     console.log('✅ Python environment already exists');
     return;
   }
-  
-  // Check if uv is available
-  const uvPath = await findUv();
-  if (!uvPath) {
-    console.error('❌ uv not found. Please install uv first:');
-    console.error('   curl -LsSf https://astral.sh/uv/install.sh | sh');
-    process.exit(1);
-  }
-  
+
   try {
-    // Create virtual environment
-    console.log('🔧 Creating Python virtual environment...');
-    await runCommand(uvPath, ['venv', envPath, '--python', '3.11', '--seed']);
-    
-    // Install dependencies if requirements.txt exists
-    if (fs.existsSync(requirementsPath)) {
-      console.log('📦 Installing Python dependencies...');
-      const pythonPath = path.join(envPath, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
-      await runCommand(uvPath, ['pip', 'install', '-r', requirementsPath, '--python', pythonPath]);
+    // Check if UV is available
+    const uvPath = await findUV();
+    if (uvPath) {
+      console.log('🚀 Using UV to create Python environment...');
+      await runCommand(uvPath, ['venv', venvPath]);
+      console.log('✅ Python environment setup complete with UV!');
+      return;
     }
-    
-    console.log('✅ Python environment setup complete!');
-    
   } catch (error) {
-    console.error('❌ Failed to setup Python environment:', error.message);
-    process.exit(1);
+    console.log('⚠️ UV not available, falling back to traditional venv...');
   }
+
+  // Fallback to traditional Python venv
+  console.log('🔧 Creating Python virtual environment...');
+  await runCommand('python', ['-m', 'venv', venvPath]);
+  
+  console.log('✅ Python environment setup complete!');
 }
 
-async function findUv() {
+async function findUV() {
   const possiblePaths = [
     'uv',
     '/usr/local/bin/uv',

@@ -11,8 +11,7 @@ const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
     extraResource: [
-      'resources',
-      'requirements.txt'
+      'resources'
     ],
     // Ignore Python environment during ASAR packaging (it should be external)
     ignore: [

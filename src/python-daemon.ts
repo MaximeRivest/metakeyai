@@ -73,8 +73,8 @@ export class PythonDaemon extends EventEmitter {
     const isDev = !require('electron').app.isPackaged;
     const executableName = 'metakeyai-server';
 
-    // Path for packaged app
-    const prodPath = path.join(process.resourcesPath, 'python', executableName);
+    // Path for packaged app - Note: Electron Forge copies our 'resources' folder into the app's resources directory
+    const prodPath = path.join(process.resourcesPath, 'resources', 'python', executableName);
     
     if (!isDev) {
       console.log('📦 Using packaged server executable:', prodPath);

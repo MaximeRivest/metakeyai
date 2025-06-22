@@ -51,8 +51,8 @@ export class PythonSpellCaster {
     // In development, scripts are in src/python_scripts relative to project root
     const devPath = path.join(__dirname, '..', 'src', 'python_scripts', filename);
     
-    // In packaged app, they should be in resources
-    const prodPath = path.join(process.resourcesPath, 'python_scripts', filename);
+    // In packaged app, they should be in resources - Note: Electron Forge copies our 'resources' folder into the app's resources directory
+    const prodPath = path.join(process.resourcesPath, 'resources', 'python_scripts', filename);
     
     console.log('🔍 Checking script paths:');
     console.log('  Webpack path:', webpackPath, fs.existsSync(webpackPath) ? '✅' : '❌');

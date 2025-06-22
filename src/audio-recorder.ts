@@ -37,8 +37,8 @@ export class AudioRecorder extends EventEmitter {
       // In development, use the binary from our resources directory
       return join(__dirname, '..', 'resources', 'binaries', platform === 'win32' ? 'windows' : platform === 'darwin' ? 'macos' : 'linux', soxFilename);
     } else {
-      // In production, use the binary from the packaged resources
-      return join(process.resourcesPath, 'binaries', platform === 'win32' ? 'windows' : platform === 'darwin' ? 'macos' : 'linux', soxFilename);
+      // In production, use the binary from the packaged resources - Note: Electron Forge copies our 'resources' folder into the app's resources directory
+      return join(process.resourcesPath, 'resources', 'binaries', platform === 'win32' ? 'windows' : platform === 'darwin' ? 'macos' : 'linux', soxFilename);
     }
   }
 

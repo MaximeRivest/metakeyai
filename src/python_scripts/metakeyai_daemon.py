@@ -54,14 +54,12 @@ def load_spell_module(script_file: str) -> types.ModuleType:
 
     module = importlib.util.module_from_spec(spec)  # type: ignore
     # Provide dspy and default LM to spell namespace automatically
-    if dspy is not None:
+    if _safe_import_dspy():
         try:
-            import importlib as _il
-            dspy_settings = _il.import_module('dspy').settings  # type: ignore
-            if getattr(dspy_settings, 'lm', None) is None:
+            if getattr(dspy.settings, 'lm', None) is None:
                 model_str = os.getenv('METAKEYAI_LLM') or 'openai/gpt-3.5-turbo'
                 try:
-                    dspy_settings.lm = dspy.LM(model_str)
+                    dspy.settings.lm = dspy.LM(model_str)
                 except Exception as _e:
                     log('Failed to create default LM:', _e)
         except Exception as _e:
@@ -76,25 +74,53 @@ def load_spell_module(script_file: str) -> types.ModuleType:
 # LLM / ENV management
 # ---------------------------------------------------------------------------
 
-try:
-    import dspy  # type: ignore
-except ImportError:
-    dspy = None
+# More robust DSPy import handling for PyInstaller
+dspy = None
+dspy_import_error = None
+
+def _safe_import_dspy():
+    """Safely import dspy with detailed error handling for PyInstaller."""
+    global dspy, dspy_import_error
+    
+    if dspy is not None:
+        return True
+    
+    # Temporarily disable DSPy in PyInstaller builds
+    if getattr(sys, 'frozen', False):
+        dspy_import_error = "DSPy disabled in packaged builds (temporary)"
+        log(f"⚠️ {dspy_import_error}")
+        return False
+    
+    try:
+        import dspy as _dspy
+        dspy = _dspy
+        log("✅ DSPy imported successfully")
+        return True
+    except ImportError as e:
+        dspy_import_error = f"DSPy not installed: {e}"
+        log(f"⚠️ {dspy_import_error}")
+        return False
+    except Exception as e:
+        dspy_import_error = f"DSPy import failed: {e}"
+        log(f"❌ {dspy_import_error}")
+        # Log more details for debugging
+        import traceback
+        log(f"DSPy import traceback:\n{traceback.format_exc()}")
+        return False
 
 def _configure_llm_from_env():
     """(Re)configure DSPy default LLM from environment vars."""
-    if not dspy:
-        log("dspy not installed – cannot configure default LLM")
+    if not _safe_import_dspy():
+        log("Cannot configure LLM - DSPy not available")
         return
+        
     model_name = os.getenv("METAKEYAI_LLM")
     if model_name:
         try:
-            import importlib
-            dspy_settings = importlib.import_module('dspy').settings  # type: ignore
-            dspy_settings.lm = dspy.LM(model_name)
+            dspy.settings.lm = dspy.LM(model_name)
             log("DSPy default LLM configured ->", model_name)
         except Exception as e:
-            log("Failed to set DSPy default LLM via settings:", e)
+            log("Failed to set DSPy default LLM:", e)
 
 # ---------------------------------------------------------------------------
 # Spell Discovery
@@ -222,7 +248,7 @@ def update_env(payload: EnvUpdateRequest):
 
         ok = False
         msg = ""
-        if dspy:
+        if _safe_import_dspy():
             try:
                 model_str = os.getenv("METAKEYAI_LLM", "")
                 if model_str:
@@ -231,6 +257,8 @@ def update_env(payload: EnvUpdateRequest):
                     ok = len(test_out) > 0
             except Exception as e:
                 msg = str(e)
+        else:
+            msg = dspy_import_error or "DSPy not available"
         return {"updated": list(payload.env.keys()), "ok": ok, "msg": msg}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -242,25 +270,25 @@ class QuickEditRequest(BaseModel):
 def quick_edit(payload: QuickEditRequest):
     text = payload.text
     if not text:
-        return ""
-    if not dspy:
-        return text.upper()
+        return {"result": ""}
+    
+    if not _safe_import_dspy():
+        # Fallback: just return the text uppercased as a simple transformation
+        return {"result": text.upper()}
 
     try:
-        import importlib
-        dspy_settings = importlib.import_module('dspy').settings
-        lm = getattr(dspy_settings, 'lm', None)
+        lm = getattr(dspy.settings, 'lm', None)
         if lm is None:
             model_str = os.getenv("METAKEYAI_LLM") or "openai/gpt-3.5-turbo"
             lm = dspy.LM(model_str)
-            dspy_settings.lm = lm
+            dspy.settings.lm = lm
         
         qedit = dspy.Predict("prompt -> answer", lm=lm)
         improved = qedit(prompt=text).answer
-        return improved.strip()
+        return {"result": improved.strip()}
     except Exception as e:
         log("quick_edit failed:", e)
-        return text
+        return {"result": text}
 
 # ---------------------------------------------------------------------------
 # Main Execution

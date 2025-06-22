@@ -65,10 +65,10 @@ jobs:
       - name: Set up sox (Windows)
         run: |
           mkdir -p resources/binaries/windows
-          Invoke-WebRequest -Uri "https://sourceforge.net/projects/sox/files/sox/14.4.2/sox-14.4.2-win32.zip/download" -OutFile "sox.zip"
-          Expand-Archive -Path "sox.zip" -DestinationPath "sox-temp"
-          Copy-Item "sox-temp/sox.exe" "resources/binaries/windows/sox.exe"
-          Remove-Item -Recurse -Force "sox-temp", "sox.zip"
+          # Use chocolatey to install sox, which is more reliable than manual download
+          choco install sox.portable -y
+          # Copy the sox executable from chocolatey installation
+          Copy-Item "C:\ProgramData\chocolatey\lib\sox.portable\tools\sox.exe" "resources/binaries/windows/sox.exe"
         if: runner.os == 'Windows'
         shell: pwsh
         

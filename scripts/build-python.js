@@ -18,6 +18,21 @@ async function buildPythonServer() {
 
   console.log('📦 Setting up UV-based distribution...');
   await buildWithUv(uvPath, appPath);
+
+  // Copy the uv binary we detected into resources so packaged app can use it
+  try {
+    const resourcesDir = path.join(appPath, 'resources', 'binaries');
+    const platformDir = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : 'linux';
+    const destDir = path.join(resourcesDir, platformDir);
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+    const destUvPath = path.join(destDir, process.platform === 'win32' ? 'uv.exe' : 'uv');
+    fs.copyFileSync(uvPath, destUvPath);
+    console.log(`✅ Bundled uv binary at: ${destUvPath}`);
+  } catch (err) {
+    console.warn('⚠️ Failed to bundle uv binary:', err.message);
+  }
 }
 
 async function buildWithUv(uvPath, appPath) {

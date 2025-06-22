@@ -12,7 +12,7 @@
     "lint": "eslint --ext .ts,.tsx .",
     "setup:python": "node scripts/setup-python.js",
     "setup:audio": "node scripts/setup-audio-binaries.js",
-    "build:python": "node scripts/build-python.js",
+    "build:python": "node scripts/setup-windows-python.js && node scripts/build-python.js",
     "clean:python": "rm -rf python-env",
     "dev": "electron-forge start",
     "postinstall": "node scripts/setup-python.js || echo 'Python setup skipped'"
@@ -54,6 +54,7 @@
     "dotenv": "^16.5.0",
     "electron-log": "^5.4.1",
     "electron-squirrel-startup": "^1.0.1",
-    "form-data": "^4.0.3"
+    "form-data": "^4.0.3",
+    "unzipper": "^0.10.11"
   }
 }

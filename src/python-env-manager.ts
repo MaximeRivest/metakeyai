@@ -20,6 +20,7 @@ export class PythonEnvironmentManager extends EventEmitter {
   private uvPath: string;
   private isInitialized = false;
   private isEmbedded = false;
+  private bundledPythonPath: string | null = null;
 
   constructor() {
     super();
@@ -39,13 +40,40 @@ export class PythonEnvironmentManager extends EventEmitter {
     this.pipPath = path.join(this.envPath, process.platform === 'win32' ? 'Scripts/pip.exe' : 'bin/pip');
     this.uvPath = this.findUv();
     
+    // If packaged on Windows, attempt to use a bundled embeddable python
+    if (!isDev && process.platform === 'win32') {
+      const resourcesRoot = process.resourcesPath || path.join(process.cwd(), 'resources');
+      const bundled = path.join(resourcesRoot, 'binaries', 'windows', 'python', 'python.exe');
+      if (fs.existsSync(bundled)) {
+        this.bundledPythonPath = bundled;
+        console.log('🐍 Bundled Python found at', bundled);
+      }
+    }
+    
     console.log('🐍 Python Environment Manager initialized');
     console.log('📁 Environment path:', this.envPath);
     console.log('🔧 UV path:', this.uvPath);
   }
 
   private findUv(): string {
-    // Try common locations for uv
+    // 1) Check if we have a bundled uv binary inside resources/binaries
+    //    For Windows   -> resources/binaries/windows/uv.exe
+    //    For macOS     -> resources/binaries/macos/uv (chmod +x)
+    //    For Linux     -> resources/binaries/linux/uv (chmod +x)
+    const resourcesRoot = process.resourcesPath || path.join(process.cwd(), 'resources');
+    const platformDir = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'macos' : 'linux';
+    const bundledUv = path.join(resourcesRoot, 'binaries', platformDir, process.platform === 'win32' ? 'uv.exe' : 'uv');
+
+    if (fs.existsSync(bundledUv)) {
+      try {
+        spawn(bundledUv, ['--version'], { stdio: 'ignore' });
+        return bundledUv;
+      } catch {
+        // fall through to other checks
+      }
+    }
+
+    // 2) Try common locations / PATH
     const possiblePaths = [
       'uv',
       '/usr/local/bin/uv',
@@ -56,16 +84,14 @@ export class PythonEnvironmentManager extends EventEmitter {
 
     for (const uvPath of possiblePaths) {
       try {
-        const result = spawn(uvPath, ['--version'], { stdio: 'pipe' });
-        if (result) {
-          return uvPath;
-        }
-      } catch (error) {
+        spawn(uvPath, ['--version'], { stdio: 'ignore' });
+        return uvPath;
+      } catch {
         // Continue trying
       }
     }
 
-    throw new Error('uv not found. Please install uv: curl -LsSf https://astral.sh/uv/install.sh | sh');
+    throw new Error('uv not found. Please install uv or include it as a bundled binary.');
   }
 
   async initialize(): Promise<PythonEnvInfo> {
@@ -109,11 +135,12 @@ export class PythonEnvironmentManager extends EventEmitter {
 
   private async createEmbeddedEnvironment(): Promise<void> {
     return new Promise((resolve, reject) => {
-      // Create virtual environment with uv
+      const pythonSpecifier = this.bundledPythonPath ? this.bundledPythonPath : '3.11';
+
       const uvProcess = spawn(this.uvPath, [
         'venv',
         this.envPath,
-        '--python', '3.11', // Use Python 3.11 for good compatibility
+        '--python', pythonSpecifier,
         '--seed' // Include pip, setuptools, wheel
       ], {
         stdio: ['pipe', 'pipe', 'pipe']

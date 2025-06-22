@@ -5,6 +5,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execSync } = require('child_process');
 
 async function setupAudioBinaries() {
   console.log('🔊 Setting up audio binaries for platform:', process.platform);
@@ -361,11 +362,59 @@ function getCommandOutput(command, args) {
   });
 }
 
-if (require.main === module) {
-  setupAudioBinaries().catch((error) => {
-    console.error('❌ Failed to setup audio binaries:', error);
-    process.exit(1);
+async function downloadFile(url, dest) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(dest);
+    https.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`Download failed: ${response.statusCode}`));
+        return;
+      }
+      response.pipe(file);
+      file.on('finish', () => {
+        file.close();
+        resolve();
+      });
+    }).on('error', reject);
   });
+}
+
+async function setupWindowsAudio() {
+  if (process.platform !== 'win32') {
+    console.log('🔊 Windows audio setup skipped - not running on Windows');
+    return;
+  }
+
+  const resourcesDir = path.join(process.cwd(), 'resources', 'binaries', 'windows');
+  if (!fs.existsSync(resourcesDir)) {
+    fs.mkdirSync(resourcesDir, { recursive: true });
+  }
+
+  const soxPath = path.join(resourcesDir, 'sox.exe');
+  if (fs.existsSync(soxPath)) {
+    console.log('🔊 sox.exe already exists, skipping download');
+    return;
+  }
+
+  console.log('🔊 Downloading sox.exe for Windows...');
+  
+  // Use a reliable sox binary from SourceForge
+  const soxUrl = 'https://downloads.sourceforge.net/project/sox/sox/14.4.2/sox-14.4.2-win32.exe';
+  
+  try {
+    await downloadFile(soxUrl, soxPath);
+    console.log('✅ sox.exe downloaded successfully');
+  } catch (error) {
+    console.warn('⚠️ Failed to download sox.exe:', error.message);
+    console.log('🔊 Audio recording may fall back to ffmpeg');
+  }
+}
+
+if (require.main === module) {
+  (async () => {
+    await setupAudioBinaries();
+    await setupWindowsAudio();
+  })().catch(console.error);
 }
 
 module.exports = { setupAudioBinaries }; 

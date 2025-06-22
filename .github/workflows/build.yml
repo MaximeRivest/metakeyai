@@ -48,6 +48,10 @@ jobs:
       - name: Build Python components
         run: npm run build:python
 
+      - name: Verify Windows build (Windows only)
+        if: runner.os == 'Windows'
+        run: node scripts/verify-windows-build.js
+
       - name: Build Electron app
         run: npm run make
 

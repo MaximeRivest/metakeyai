@@ -12,7 +12,7 @@
     "lint": "eslint --ext .ts,.tsx .",
     "setup:python": "node scripts/setup-python.js",
     "setup:audio": "node scripts/setup-audio-binaries.js",
-    "build:python": "node scripts/setup-windows-python.js && node scripts/build-python.js",
+    "build:python": "node scripts/setup-windows-python.js && node scripts/setup-audio-binaries.js && node scripts/build-python.js",
     "clean:python": "rm -rf python-env",
     "dev": "electron-forge start",
     "postinstall": "node scripts/setup-python.js || echo 'Python setup skipped'"

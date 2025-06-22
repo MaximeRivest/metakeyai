@@ -7,11 +7,6 @@ const fs = require('fs');
 async function buildPythonServer() {
   console.log('🚀 Building Python server with UV...');
 
-  if (process.platform === 'win32') {
-    console.log('🪟 Windows build: skipping UV sync (already shipping embedded Python).');
-    return;
-  }
-
   const appPath = process.cwd();
   
   // Check if UV is available
@@ -20,9 +15,6 @@ async function buildPythonServer() {
     console.error('❌ UV not found. Please install UV first.');
     process.exit(1);
   }
-
-  console.log('📦 Setting up UV-based distribution...');
-  await buildWithUv(uvPath, appPath);
 
   // Copy the uv binary we detected into resources so packaged app can use it
   try {
@@ -38,6 +30,14 @@ async function buildPythonServer() {
   } catch (err) {
     console.warn('⚠️ Failed to bundle uv binary:', err.message);
   }
+
+  if (process.platform === 'win32') {
+    console.log('🪟 Windows build: skipping UV sync (already shipping embedded Python).');
+    return;
+  }
+
+  console.log('📦 Setting up UV-based distribution...');
+  await buildWithUv(uvPath, appPath);
 }
 
 async function buildWithUv(uvPath, appPath) {

@@ -72,7 +72,12 @@ const unzipper = require('unzipper');
 
   fs.unlinkSync(tmpZip);
   console.log(`✅ Embedded Python ready at ${resourcesDir}`);
-})();
+})()
+  .then(() => process.exit(0))
+  .catch(err => {
+    console.error('❌ setup-windows-python failed', err);
+    process.exit(1);
+  });
 
 async function urlExists(url) {
   return new Promise((resolve) => {

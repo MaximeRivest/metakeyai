@@ -24,13 +24,26 @@ const config: ForgeConfig = {
   rebuildConfig: {},
   makers: [
     {
+      name: '@electron-forge/maker-squirrel',
+      config: {
+        name: 'metakeyai'
+      },
+      platforms: ['win32']
+    },
+    {
+      name: '@electron-forge/maker-zip',
+      config: {},
+      platforms: ['darwin']
+    },
+    {
       name: '@reforged/maker-appimage',
       config: {
         options: {
           // You can add options here, e.g., categories
           // categories: ['Utility']
         }
-      }
+      },
+      platforms: ['linux']
     }
   ],
   plugins: [

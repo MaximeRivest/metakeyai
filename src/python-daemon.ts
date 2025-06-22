@@ -176,45 +176,105 @@ export class PythonDaemon extends EventEmitter {
         args: ['run', 'python', 'src/python_scripts/metakeyai_daemon.py']
       };
     } else {
-      // Production mode: run from resources
+      // Production mode: create writable project in user data directory
       console.log('📦 Running in production mode with UV');
-      const resourcesPath = path.join(process.resourcesPath, 'resources');
+      const { app } = require('electron');
+      const userDataPath = app.getPath('userData');
+      const projectPath = path.join(userDataPath, 'python-project');
       
-      // Ensure UV environment is set up
-      await this.ensureProductionEnvironment(resourcesPath);
+      // Ensure UV environment is set up in writable location
+      await this.ensureProductionEnvironment(projectPath);
       
       return {
         command: this.uvPath!,
-        args: ['run', '--project', resourcesPath, 'python', 'src/python_scripts/metakeyai_daemon.py']
+        args: ['run', '--project', projectPath, 'python', 'src/python_scripts/metakeyai_daemon.py']
       };
     }
   }
 
-  private async ensureProductionEnvironment(resourcesPath: string): Promise<void> {
-    const pyprojectPath = path.join(resourcesPath, 'pyproject.toml');
+  private async ensureProductionEnvironment(projectPath: string): Promise<void> {
+    // Create the project directory if it doesn't exist
+    if (!fs.existsSync(projectPath)) {
+      fs.mkdirSync(projectPath, { recursive: true });
+      console.log('📁 Created production project directory:', projectPath);
+    }
+
+    const pyprojectPath = path.join(projectPath, 'pyproject.toml');
+    const srcPath = path.join(projectPath, 'src');
+    const scriptsPath = path.join(srcPath, 'python_scripts');
     
+    // Copy pyproject.toml from resources if it doesn't exist
     if (!fs.existsSync(pyprojectPath)) {
-      throw new Error(`pyproject.toml not found at ${pyprojectPath}`);
+      const sourcePyprojectPath = path.join(process.resourcesPath, 'resources', 'pyproject.toml');
+      if (fs.existsSync(sourcePyprojectPath)) {
+        fs.copyFileSync(sourcePyprojectPath, pyprojectPath);
+        console.log('📄 Copied pyproject.toml to production directory');
+      } else {
+        // Create a minimal pyproject.toml
+        const minimalPyproject = `[project]
+name = "metakeyai-daemon"
+version = "1.0.0"
+description = "MetaKeyAI Python daemon"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+`;
+        fs.writeFileSync(pyprojectPath, minimalPyproject);
+        console.log('📄 Created minimal pyproject.toml');
+      }
+    }
+
+    // Copy Python scripts if they don't exist
+    if (!fs.existsSync(scriptsPath)) {
+      fs.mkdirSync(scriptsPath, { recursive: true });
+      const sourceScriptsPath = path.join(process.resourcesPath, 'resources', 'src', 'python_scripts');
+      if (fs.existsSync(sourceScriptsPath)) {
+        this.copyDirectoryRecursive(sourceScriptsPath, scriptsPath);
+        console.log('📁 Copied Python scripts to production directory');
+      } else {
+        throw new Error(`Python scripts not found in resources at ${sourceScriptsPath}`);
+      }
     }
 
     // Check if UV environment is synced
-    const uvLockPath = path.join(resourcesPath, 'uv.lock');
+    const uvLockPath = path.join(projectPath, 'uv.lock');
     if (!fs.existsSync(uvLockPath)) {
       console.log('🔄 Syncing UV dependencies in production...');
-      await this.runUvCommand(['sync', '--project', resourcesPath]);
+      await this.runUvCommand(['sync', '--project', projectPath]);
+    }
+  }
+
+  private copyDirectoryRecursive(source: string, destination: string): void {
+    if (!fs.existsSync(destination)) {
+      fs.mkdirSync(destination, { recursive: true });
+    }
+
+    const items = fs.readdirSync(source);
+    for (const item of items) {
+      const sourcePath = path.join(source, item);
+      const destPath = path.join(destination, item);
+      
+      const stat = fs.statSync(sourcePath);
+      if (stat.isDirectory()) {
+        this.copyDirectoryRecursive(sourcePath, destPath);
+      } else {
+        fs.copyFileSync(sourcePath, destPath);
+      }
     }
   }
 
   private runUvCommand(args: string[]): Promise<void> {
-    if (!this.uvPath) {
-      throw new Error('UV not available');
-    }
-    return this.runCommand(this.uvPath, args);
-  }
-
-  private runCommand(command: string, args: string[]): Promise<void> {
     return new Promise((resolve, reject) => {
-      const proc = spawn(command, args, {
+      if (!this.uvPath) {
+        throw new Error('UV not available');
+      }
+      const proc = spawn(this.uvPath, args, {
         stdio: ['pipe', 'pipe', 'pipe']
       });
 

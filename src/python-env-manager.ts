@@ -26,9 +26,15 @@ export class PythonEnvironmentManager extends EventEmitter {
     
     // Determine paths based on whether we're in development or production
     const isDev = !app.isPackaged;
-    const appPath = isDev ? process.cwd() : app.getAppPath();
     
-    this.envPath = path.join(appPath, 'python-env');
+    if (isDev) {
+      // Development: use project directory
+      this.envPath = path.join(process.cwd(), 'python-env');
+    } else {
+      // Production: use user data directory for writable access
+      this.envPath = path.join(app.getPath('userData'), 'python-env');
+    }
+    
     this.pythonPath = path.join(this.envPath, process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
     this.pipPath = path.join(this.envPath, process.platform === 'win32' ? 'Scripts/pip.exe' : 'bin/pip');
     this.uvPath = this.findUv();

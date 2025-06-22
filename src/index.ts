@@ -90,6 +90,10 @@ if (process.platform === 'win32') {
 }
 
 // Enhanced logging for Windows
+// Save original console methods first to prevent recursion
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+
 class WindowsLogger {
   private logFile: string;
   private debugMode: boolean;
@@ -108,6 +112,7 @@ class WindowsLogger {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     this.logFile = path.join(logDir, `metakeyai-${timestamp}.log`);
     
+    // Use this.log, which now correctly uses originalConsoleLog
     this.log('🚀 MetaKeyAI Debug Logger Started');
     this.log(`📍 Platform: ${process.platform} ${process.arch}`);
     this.log(`📦 Packaged: ${app.isPackaged}`);
@@ -123,26 +128,42 @@ class WindowsLogger {
     }
   }
   
+  private writeToFile(logEntry: string) {
+    try {
+      fs.appendFileSync(this.logFile, logEntry);
+    } catch (error) {
+      originalConsoleError('Failed to write to log file:', error);
+    }
+  }
+
   log(message: string) {
     const timestamp = new Date().toISOString();
     const logEntry = `[${timestamp}] ${message}\n`;
     
-    // Always log to console
-    console.log(message);
+    // Always log to console using original function
+    originalConsoleLog(message);
     
     // Also log to file
-    try {
-      fs.appendFileSync(this.logFile, logEntry);
-    } catch (error) {
-      console.error('Failed to write to log file:', error);
-    }
+    this.writeToFile(logEntry);
   }
   
   error(message: string, error?: any) {
     const errorMsg = error ? `${message}: ${error.message || error}` : message;
-    this.log(`❌ ERROR: ${errorMsg}`);
+    const fullMessage = `❌ ERROR: ${errorMsg}`;
+
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] ${fullMessage}\n`;
+    
+    // Log to original console
+    originalConsoleError(fullMessage);
+    
+    // Also log to file
+    this.writeToFile(logEntry);
+
     if (error?.stack) {
-      this.log(`📍 Stack: ${error.stack}`);
+      const stackLogEntry = `[${timestamp}] 📍 Stack: ${error.stack}\n`;
+      originalConsoleError(`📍 Stack: ${error.stack}`);
+      this.writeToFile(stackLogEntry);
     }
     
     // For Windows, also try to show a notification
@@ -180,19 +201,36 @@ class WindowsLogger {
 const logger = new WindowsLogger();
 
 // Override console methods to use our logger
-const originalConsoleLog = console.log;
-const originalConsoleError = console.error;
-
 console.log = (...args) => {
-  const message = args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ');
+  const message = args.map(arg => {
+    if (typeof arg === 'object' && arg !== null) {
+      try {
+        return JSON.stringify(arg);
+      } catch {
+        return '[Unstringifiable Object]';
+      }
+    }
+    return String(arg);
+  }).join(' ');
   logger.log(message);
-  originalConsoleLog(...args);
 };
 
 console.error = (...args) => {
-  const message = args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' ');
-  logger.error(message);
-  originalConsoleError(...args);
+  const errorInstance = args.find(arg => arg instanceof Error);
+  const message = args
+    .filter(arg => !(arg instanceof Error))
+    .map(arg => {
+      if (typeof arg === 'object' && arg !== null) {
+        try {
+          return JSON.stringify(arg);
+        } catch {
+          return '[Unstringifiable Object]';
+        }
+      }
+      return String(arg);
+    }).join(' ');
+  
+  logger.error(message, errorInstance);
 };
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.

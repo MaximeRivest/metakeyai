@@ -185,9 +185,11 @@ export class PythonDaemon extends EventEmitter {
       // Ensure UV environment is set up in writable location
       await this.ensureProductionEnvironment(projectPath);
       
+      const scriptPath = path.join(projectPath, 'src', 'python_scripts', 'metakeyai_daemon.py');
+
       return {
         command: this.uvPath!,
-        args: ['run', '--project', projectPath, 'python', 'src/python_scripts/metakeyai_daemon.py']
+        args: ['run', '--project', projectPath, 'python', scriptPath]
       };
     }
   }

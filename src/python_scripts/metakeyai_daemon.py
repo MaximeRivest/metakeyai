@@ -33,8 +33,16 @@ def log(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 # ---------------------------------------------------------------------------
-# Spell Loading and Caching
+# LLM / ENV management
 # ---------------------------------------------------------------------------
+
+# Try to import dspy, but don't fail if it's not there.
+try:
+    import dspy
+    log("✅ dspy-ai package found.")
+except ImportError:
+    dspy = None
+    log("⚠️ dspy-ai package not found. AI features will be limited.")
 
 def load_spell_module(script_file: str) -> types.ModuleType:
     """Load (and cache) a spell module from arbitrary path."""
@@ -53,7 +61,7 @@ def load_spell_module(script_file: str) -> types.ModuleType:
 
     module = importlib.util.module_from_spec(spec)  # type: ignore
     # Provide dspy and default LM to spell namespace automatically
-    if safe_import_dspy():
+    if dspy:
         try:
             if getattr(dspy.settings, 'lm', None) is None:
                 model_str = os.getenv('METAKEYAI_LLM') or 'openai/gpt-3.5-turbo'
@@ -74,22 +82,17 @@ def load_spell_module(script_file: str) -> types.ModuleType:
 # ---------------------------------------------------------------------------
 
 # More robust DSPy import handling for PyInstaller
-dspy = None
 dspy_import_error = None
 
 def safe_import_dspy():
     """Safely import dspy with detailed error handling."""
-    try:
-        import dspy
+    if dspy:
         return dspy
-    except ImportError as e:
-        print(f"❌ Failed to import dspy: {e}")
-        print("💡 Make sure dspy-ai is installed: uv add dspy-ai")
-        raise
+    return None
 
 def _configure_llm_from_env():
     """(Re)configure DSPy default LLM from environment vars."""
-    if not safe_import_dspy():
+    if not dspy:
         log("Cannot configure LLM - DSPy not available")
         return
         
@@ -252,7 +255,7 @@ def quick_edit(payload: QuickEditRequest):
     if not text:
         return {"result": ""}
     
-    if not safe_import_dspy():
+    if not dspy:
         # Fallback: just return the text uppercased as a simple transformation
         return {"result": text.upper()}
 

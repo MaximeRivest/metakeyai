@@ -354,34 +354,51 @@ export class AudioRecorder extends EventEmitter {
   private setupRecordingHandlers(method: string): void {
     if (!this.recordingProcess) return;
 
+    let stderr = '';
     if (this.recordingProcess.stderr) {
       this.recordingProcess.stderr.on('data', (data) => {
         const output = data.toString();
-        // Only log significant errors, not normal ffmpeg output
-        if (output.toLowerCase().includes('error') || output.toLowerCase().includes('failed')) {
-          console.log(`📻 ${method} stderr:`, output);
-        }
+        stderr += output;
+        // Log all stderr for debugging purposes
+        console.log(`📻 ${method} stderr:`, output);
       });
     }
 
     this.recordingProcess.on('error', (err: any) => {
       console.error(`❌ ${method} recording error:`, err);
-      this.emit('error', err);
       this.isRecording = false;
+      this.emit('error', err);
       this.cleanUp();
     });
 
     this.recordingProcess.on('close', (code) => {
       console.log(`🔚 ${method} process exited with code:`, code);
       if (this.isRecording) {
-        console.log('✅ Finished writing audio to file:', this.outputFile);
-        if (this.outputFile && fs.existsSync(this.outputFile)) {
+        this.isRecording = false; // Set recording status to false immediately
+
+        if (code !== 0) {
+          // Process exited with an error
+          let errorMsg = `Recording process failed with code ${code}.`;
+          if (stderr.toLowerCase().includes('i/o error')) {
+            errorMsg = 'Could not access the microphone. It might be in use by another application or disconnected.';
+          } else if (stderr.toLowerCase().includes('device not found')) {
+            errorMsg = 'Default recording device not found. Please check your microphone connection.';
+          } else if (stderr) {
+            errorMsg += ` Details: ${stderr.trim()}`;
+          }
+          this.emit('error', new Error(errorMsg));
+
+        } else if (this.outputFile && fs.existsSync(this.outputFile)) {
+          // Process exited successfully and file exists
+          console.log('✅ Finished writing audio to file:', this.outputFile);
           this.emit('finished', this.outputFile);
+        
         } else {
+          // Process exited successfully but file is missing
           console.warn('⚠️ Audio file was not created or is missing');
           this.emit('error', new Error('Recording file was not created'));
         }
-        this.isRecording = false;
+        
         this.cleanUp();
       }
     });

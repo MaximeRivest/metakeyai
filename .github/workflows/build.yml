@@ -44,6 +44,33 @@ jobs:
         run: echo "$env:USERPROFILE\\.cargo\\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
         if: runner.os == 'Windows'
         shell: pwsh
+
+      - name: Set up sox (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sox
+          mkdir -p resources/binaries/linux
+          cp /usr/bin/sox resources/binaries/linux/sox
+          chmod +x resources/binaries/linux/sox
+        if: runner.os == 'Linux'
+
+      - name: Set up sox (macOS)
+        run: |
+          brew install sox
+          mkdir -p resources/binaries/macos
+          cp /opt/homebrew/bin/sox resources/binaries/macos/sox || cp /usr/local/bin/sox resources/binaries/macos/sox
+          chmod +x resources/binaries/macos/sox
+        if: runner.os == 'macOS'
+
+      - name: Set up sox (Windows)
+        run: |
+          mkdir -p resources/binaries/windows
+          Invoke-WebRequest -Uri "https://sourceforge.net/projects/sox/files/sox/14.4.2/sox-14.4.2-win32.zip/download" -OutFile "sox.zip"
+          Expand-Archive -Path "sox.zip" -DestinationPath "sox-temp"
+          Copy-Item "sox-temp/sox.exe" "resources/binaries/windows/sox.exe"
+          Remove-Item -Recurse -Force "sox-temp", "sox.zip"
+        if: runner.os == 'Windows'
+        shell: pwsh
         
       - name: Install npm dependencies
         run: npm install

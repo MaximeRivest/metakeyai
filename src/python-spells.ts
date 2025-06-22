@@ -79,17 +79,13 @@ export class PythonSpellCaster {
     console.log('🧙‍♂️ Initializing Python Spell Caster...');
     
     try {
-      // Initialize Python environment first
-      const envInfo = await this.pythonRunner.initializeEnvironment();
-      console.log('🐍 Python detected:', envInfo.version);
-      
-      if (envInfo.isEmbedded) {
-        console.log('📦 Using embedded Python environment with', envInfo.packages.length, 'packages');
-      } else {
-        console.log('⚙️ Using system Python environment');
+      // In development, initialize the environment to support running .py scripts directly
+      if (!app.isPackaged) {
+        const envInfo = await this.pythonRunner.initializeEnvironment();
+        console.log(`🐍 In dev mode, Python detected: ${envInfo.version}`);
       }
 
-      // Start the shared Python daemon (only once for entire app)
+      // Start the shared Python daemon (which now knows if it's packaged or not)
       this.pythonDaemon = await PythonDaemon.getInstance();
 
       // Load spell book
@@ -219,84 +215,33 @@ export class PythonSpellCaster {
     const startTime = Date.now();
 
     try {
-      // If the Python daemon is available and the spell has a script file, use it
-      if (this.pythonDaemon && spell.scriptFile) {
-        try {
-          const daemonRes = await this.pythonDaemon.castSpell(
-            spell.id,
-            path.resolve(spell.scriptFile),
-            spell.requiresInput !== false ? input : undefined
-          );
-
-          const executionTime = daemonRes.executionTime || (Date.now() - startTime);
-
-          const processedOutput = typeof daemonRes.output === 'string' ? daemonRes.output : JSON.stringify(daemonRes.output);
-
-          const spellResult: SpellResult = {
-            spellId: spell.id,
-            spellName: spell.name,
-            success: daemonRes.success !== false,
-            output: processedOutput,
-            executionTime,
-            error: daemonRes.error
-          };
-
-          await this.handleSpellOutput(spell, processedOutput);
-          return spellResult;
-        } catch (err) {
-          console.warn('⚠️ Python daemon cast failed, falling back to one-off runner:', (err as Error).message);
-          // fall through to one-off execution below
-        }
+      if (!this.pythonDaemon || !this.pythonDaemon.isReady()) {
+        throw new Error('Python daemon is not available to cast spell.');
       }
-
-      // Prepare Python run options (fallback)
-      const runOptions: PythonRunOptions = {
-        timeout: spell.timeout || 30000,
-        input: spell.requiresInput !== false ? input : undefined
-      };
-
-      if (spell.script) {
-        runOptions.script = spell.script;
-      } else if (spell.scriptFile) {
-        runOptions.scriptFile = path.resolve(spell.scriptFile);
-      } else {
-        throw new Error('Spell has no script or scriptFile defined');
-      }
-
-      if (spell.args) {
-        runOptions.args = spell.args;
-      }
-
-      // Execute the spell via one-off Python process
-      const result = await this.pythonRunner.run(runOptions);
-      const executionTime = Date.now() - startTime;
-
-      // Process output based on format
-      let processedOutput = result.stdout;
       
-      if (spell.outputFormat === 'json') {
-        try {
-          const jsonData = JSON.parse(result.stdout);
-          processedOutput = JSON.stringify(jsonData, null, 2);
-        } catch {
-          // Keep original output if not valid JSON
-        }
-      }
+      const daemonRes = await this.pythonDaemon.castSpell({
+        spellId: spell.id,
+        scriptFile: spell.scriptFile ? path.resolve(spell.scriptFile) : undefined,
+        script: spell.script,
+        input: spell.requiresInput !== false ? input : undefined
+      });
+
+      const executionTime = daemonRes.executionTime || (Date.now() - startTime);
+      const processedOutput = typeof daemonRes.output === 'string' ? daemonRes.output : JSON.stringify(daemonRes.output);
 
       const spellResult: SpellResult = {
         spellId: spell.id,
         spellName: spell.name,
-        success: result.success,
+        success: daemonRes.success !== false,
         output: processedOutput,
         executionTime,
-        error: result.success ? undefined : result.stderr
+        error: daemonRes.error
       };
 
-      // Handle output format
-      if (result.success && processedOutput) {
+      if (spellResult.success && processedOutput) {
         await this.handleSpellOutput(spell, processedOutput);
       }
-
+      
       console.log(`✅ Spell completed: ${spell.name} (${executionTime}ms)`);
       return spellResult;
 
@@ -604,11 +549,11 @@ export class PythonSpellCaster {
         throw new Error('No Python script provided for the spell.');
       }
 
-      const daemonResult = await this.pythonDaemon.castSpell(
-        spell.id,
-        scriptFileToRun,
-        spell.requiresInput ? input : undefined
-      );
+      const daemonResult = await this.pythonDaemon.castSpell({
+        spellId: spell.id,
+        scriptFile: scriptFileToRun,
+        input: spell.requiresInput ? input : undefined
+      });
 
       // Clean up temp file if created
       if (tempFilePath) {

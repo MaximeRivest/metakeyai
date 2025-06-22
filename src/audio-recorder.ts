@@ -3,6 +3,7 @@ import { spawn, ChildProcess } from 'child_process';
 import fs from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { app } from 'electron';
 
 // Extend EventEmitter to handle events
 export class AudioRecorder extends EventEmitter {
@@ -12,6 +13,33 @@ export class AudioRecorder extends EventEmitter {
 
   constructor() {
     super();
+  }
+
+  private getSoxPath(): string {
+    const platform = process.platform;
+    const isDev = !app.isPackaged;
+    
+    let soxFilename: string;
+    switch (platform) {
+      case 'win32':
+        soxFilename = 'sox.exe';
+        break;
+      case 'darwin':
+        soxFilename = 'sox';
+        break;
+      case 'linux':
+      default:
+        soxFilename = 'sox';
+        break;
+    }
+
+    if (isDev) {
+      // In development, use the binary from our resources directory
+      return join(__dirname, '..', 'resources', 'binaries', platform === 'win32' ? 'windows' : platform === 'darwin' ? 'macos' : 'linux', soxFilename);
+    } else {
+      // In production, use the binary from the packaged resources
+      return join(process.resourcesPath, 'binaries', platform === 'win32' ? 'windows' : platform === 'darwin' ? 'macos' : 'linux', soxFilename);
+    }
   }
 
   start(): void {
@@ -25,6 +53,17 @@ export class AudioRecorder extends EventEmitter {
     this.filePath = join(tmpdir(), `recording_${Date.now()}.wav`);
     console.log('📁 Recording file path:', this.filePath);
 
+    const soxPath = this.getSoxPath();
+    console.log('🔧 Using sox binary at:', soxPath);
+
+    // Check if sox binary exists
+    if (!fs.existsSync(soxPath)) {
+      const error = new Error(`Sox binary not found at: ${soxPath}`);
+      console.error('❌ Sox binary missing:', error.message);
+      this.emit('error', error);
+      return;
+    }
+
     // Use sox directly with child_process
     const soxArgs = [
       '-d', // default input device
@@ -35,7 +74,7 @@ export class AudioRecorder extends EventEmitter {
     ];
     
     console.log('🔧 Starting sox with args:', soxArgs);
-    this.recording = spawn('sox', soxArgs);
+    this.recording = spawn(soxPath, soxArgs);
 
     if (this.recording.stderr) {
       this.recording.stderr.on('data', (data) => {

@@ -18,4 +18,12 @@ markdown>=3.4.0
 Pillow>=10.0.0
 
 # Development and debugging
-ipython>=8.0.0 
+ipython>=8.0.0
+
+# Add fastapi and uvicorn for the new HTTP server
+fastapi
+uvicorn[standard]
+pyinstaller
+
+# For saving clipboard history
+# ... existing code ... 

@@ -1,7 +1,7 @@
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { EventEmitter } from 'events';
 import path from 'path';
-import readline from 'readline';
+import axios, { AxiosInstance } from 'axios';
 import { PythonEnvironmentManager } from './python-env-manager';
 
 interface DaemonRequest {
@@ -16,13 +16,13 @@ interface DaemonResponse {
   error?: string;
 }
 
-// Singleton wrapper around the background Python daemon
+// Singleton wrapper around the background Python FastAPI server
 export class PythonDaemon extends EventEmitter {
   private static instance: PythonDaemon | null = null;
   private proc: ChildProcessWithoutNullStreams | null = null;
-  private reqSeq = 0;
-  private pending: Map<number, { resolve: (data: any) => void; reject: (err: Error) => void }> = new Map();
   private ready = false;
+  private client: AxiosInstance;
+  private baseUrl = 'http://127.0.0.1:5000'; // Hardcoded to match Python server
 
   static async getInstance(): Promise<PythonDaemon> {
     if (!this.instance) {
@@ -32,107 +32,125 @@ export class PythonDaemon extends EventEmitter {
     return this.instance;
   }
 
+  private constructor() {
+    super();
+    this.client = axios.create({
+      baseURL: this.baseUrl,
+      timeout: 30000,
+    });
+  }
+
   private async start(): Promise<void> {
-    if (this.proc) return; // already started
+    if (this.proc) return;
 
-    // Ensure Python env is ready – reuse the global env manager so this only runs once
-    const envManager = new PythonEnvironmentManager();
-    const envInfo = await envManager.initialize();
-    const pythonPath = envInfo.pythonPath;
+    const { command, args } = await this.getCommandAndArgs();
+    console.log('🚀 Spawning Python FastAPI server:', command, args.join(' '));
 
-    // Resolve daemon script path for both dev and packaged
-    let daemonPath = path.join(__dirname, 'python_scripts', 'metakeyai_daemon.py');
-    if (!require('fs').existsSync(daemonPath)) {
-      // Dev path
-      daemonPath = path.join(__dirname, '..', 'src', 'python_scripts', 'metakeyai_daemon.py');
-    }
+    this.proc = spawn(command, args, {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
 
-    console.log('🚀 Spawning Python daemon:', pythonPath, daemonPath);
-
-    this.proc = spawn(pythonPath, ['-u', daemonPath], {
-      stdio: ['pipe', 'pipe', 'pipe']
+    this.proc.stdout.on('data', (data) => {
+      console.log('🐍 FastAPI server stdout:', data.toString());
     });
 
     this.proc.stderr.on('data', (data) => {
-      console.error('🐍 daemon stderr:', data.toString());
+      console.error('🐍 FastAPI server stderr:', data.toString());
     });
 
     this.proc.on('exit', (code, signal) => {
-      console.error(`🐍 Python daemon exited (code ${code}, signal ${signal})`);
+      console.error(`🐍 Python server exited (code ${code}, signal ${signal})`);
       this.ready = false;
-      // Reject all pending promises
-      for (const { reject } of this.pending.values()) {
-        reject(new Error('Python daemon exited'));
-      }
-      this.pending.clear();
+      this.emit('exit');
     });
 
-    const rl = readline.createInterface({
-      input: this.proc.stdout
-    });
-
-    rl.on('line', (line) => {
-      try {
-        const msg: DaemonResponse = JSON.parse(line);
-        const handler = this.pending.get(msg.id);
-        if (handler) {
-          this.pending.delete(msg.id);
-          if (msg.error) {
-            handler.reject(new Error(msg.error));
-          } else {
-            handler.resolve(msg.result);
-          }
-        }
-      } catch (err) {
-        console.error('🐍 Failed to parse daemon line:', line);
-      }
-    });
-
-    // Wait for a ping-pong to confirm readiness
-    const pong = await this.send('ping', {});
-    if (pong !== 'pong') {
-      throw new Error('Python daemon did not respond to ping');
-    }
+    await this.waitForServerReady();
     this.ready = true;
-    console.log('✅ Python daemon is ready');
+    console.log('✅ Python FastAPI server is ready');
   }
 
-  private send(cmd: string, payload: Record<string, any>): Promise<any> {
-    if (!this.proc) throw new Error('Python daemon not running');
-    const id = this.reqSeq++;
-    const msg: DaemonRequest = { id, cmd, ...payload };
-    this.proc.stdin.write(JSON.stringify(msg) + '\n');
-    return new Promise<any>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      // 30-second default timeout
-      setTimeout(() => {
-        if (this.pending.has(id)) {
-          this.pending.delete(id);
-          reject(new Error(`Python daemon request timeout for cmd ${cmd}`));
+  private async getCommandAndArgs(): Promise<{ command: string, args: string[] }> {
+    const isDev = !require('electron').app.isPackaged;
+    const executableName = 'metakeyai-server';
+
+    // Path for packaged app
+    const prodPath = path.join(process.resourcesPath, 'python', executableName);
+    
+    if (!isDev) {
+      console.log('📦 Using packaged server executable:', prodPath);
+      if (!require('fs').existsSync(prodPath)) {
+        throw new Error(`Packaged server executable not found at ${prodPath}. Please run the build script.`);
+      }
+      return { command: prodPath, args: [] };
+    }
+
+    // Fallback for development: run the script directly via the virtual env
+    console.log('🧑‍💻 In development mode, running Python script directly...');
+    const envManager = new PythonEnvironmentManager();
+    // We must initialize the manager to ensure the python path is correct
+    await envManager.initialize(); 
+    const pythonPath = envManager.getPythonPath();
+    
+    if(!pythonPath || pythonPath === "python"){
+      throw new Error('Could not find the Python executable in the virtual environment.');
+    }
+
+    let daemonPath = path.join(__dirname, 'python_scripts', 'metakeyai_daemon.py');
+    if (!require('fs').existsSync(daemonPath)) {
+      daemonPath = path.join(__dirname, '..', 'src', 'python_scripts', 'metakeyai_daemon.py');
+    }
+    return { command: pythonPath, args: ['-u', daemonPath] };
+  }
+
+  private async waitForServerReady(): Promise<void> {
+    const maxRetries = 20; // 10 seconds total
+    const retryDelay = 500; // ms
+
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        await this.client.get('/health');
+        return; // Success
+      } catch (error) {
+        if (i === maxRetries - 1) {
+          throw new Error('Python server did not become ready in time.');
         }
-      }, 30000);
-    });
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
+    }
   }
 
-  async castSpell(spellId: string, scriptFile: string, input?: string): Promise<any> {
-    return this.send('cast', { spellId, scriptFile, input });
+  private async request<T>(method: 'get' | 'post', url: string, data?: any): Promise<T> {
+    if (!this.ready) throw new Error('Python daemon not ready');
+    try {
+      const response = await this.client.request<T>({ method, url, data });
+      return response.data;
+    } catch (error) {
+      console.error(`🐍 API request to ${url} failed:`, error.response?.data || error.message);
+      if (axios.isAxiosError(error) && error.response) {
+        throw new Error(error.response.data?.detail || `API Error on ${url}`);
+      }
+      throw error;
+    }
   }
 
-  // expose simple utility
+  async castSpell(payload: { spellId: string, scriptFile?: string, script?: string, input?: string }): Promise<any> {
+    return this.request('post', '/cast', payload);
+  }
+
   async listSpells(): Promise<any> {
-    return this.send('list_spells', {});
-  }
-
-  async updateProviders(providers: any): Promise<void> {
-    await this.send('update_providers', { providers });
+    return this.request('get', '/spells');
   }
 
   async updateEnv(envVars: Record<string, string>): Promise<any> {
-    return this.send('update_env', { env: envVars });
+    return this.request('post', '/env', { env: envVars });
   }
 
-  // Quick Edit text processing via daemon
   async quickEdit(text: string): Promise<string> {
-    return this.send('quick_edit', { text });
+    const response = await this.request<{ result: string }>('post', '/quick_edit', { text });
+    return response.result;
+  }
+
+  isReady(): boolean {
+    return this.ready;
   }
 } 

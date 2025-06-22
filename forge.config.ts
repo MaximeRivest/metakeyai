@@ -18,7 +18,9 @@ const config: ForgeConfig = {
     ignore: [
       /python-env/,
       /\.pyc$/,
-      /__pycache__/
+      /__pycache__/,
+      /build-py-work/,
+      /build-py-spec/
     ],
   },
   rebuildConfig: {},

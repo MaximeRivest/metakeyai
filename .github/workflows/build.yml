@@ -39,6 +39,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Setup audio binaries
+        run: node scripts/setup-audio-binaries.js
+
       - name: Setup Python environment
         run: npm run setup:python
 

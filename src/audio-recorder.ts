@@ -1,222 +1,213 @@
 import { EventEmitter } from 'events';
 import { spawn, ChildProcess } from 'child_process';
-import fs from 'fs';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { app } from 'electron';
 
 // Extend EventEmitter to handle events
 export class AudioRecorder extends EventEmitter {
-  private recording: ChildProcess | null = null;
-  private filePath: string | null = null;
+  private recordingProcess: ChildProcess | null = null;
+  private outputFile: string = '';
+  private recordingMethod: 'sox' | 'ffmpeg' | 'powershell' | null = null;
+  private isInitialized: boolean = false;
   public isRecording = false;
   private fallbackMethod: 'sox' | 'powershell' | 'ffmpeg' | 'none' = 'none';
-  private isInitialized = false;
 
   constructor() {
     super();
-    // Don't initialize in constructor - do it when start() is called
+    this.initializeRecordingMethod();
   }
 
   private async initializeRecordingMethod(): Promise<void> {
-    if (this.isInitialized) return;
-    
     console.log('🔍 Detecting available audio recording methods...');
     
-    // Try to find the best available recording method
-    const soxPath = this.getSoxPath();
-    
-    if (fs.existsSync(soxPath)) {
-      // Verify sox is actually executable and not our fallback stub
+    // Test methods in order of preference
+    const methods = [
+      { name: 'sox', test: () => this.testSox() },
+      { name: 'ffmpeg', test: () => this.testFfmpeg() },
+      { name: 'powershell', test: () => this.testPowerShell() }
+    ];
+
+    for (const method of methods) {
       try {
-        const testResult = await this.testSoxBinary(soxPath);
-        if (testResult) {
-          this.fallbackMethod = 'sox';
-          console.log('🎙️ Audio recording initialized with sox');
+        console.log(`🧪 Testing ${method.name} availability...`);
+        const available = await method.test();
+        if (available) {
+          this.fallbackMethod = method.name as any;
+          console.log(`🎙️ Audio recording initialized with ${method.name}`);
           this.isInitialized = true;
           return;
-        } else {
-          console.warn('⚠️ Sox binary exists but failed functionality test');
         }
       } catch (error) {
-        console.warn('⚠️ Sox binary exists but failed test:', error);
-      }
-    } else {
-      console.log('⚠️ Sox binary not found at:', soxPath);
-    }
-
-    // Try alternative methods based on platform
-    if (process.platform === 'win32') {
-      console.log('🔍 Testing PowerShell recording capability...');
-      if (await this.testPowerShellRecording()) {
-        this.fallbackMethod = 'powershell';
-        console.log('🎙️ Audio recording initialized with PowerShell');
-        this.isInitialized = true;
-        return;
-      } else {
-        console.log('⚠️ PowerShell recording test failed');
+        console.log(`⚠️ ${method.name} test failed:`, error.message);
       }
     }
 
-    // Try ffmpeg as a universal fallback
-    console.log('🔍 Testing ffmpeg availability...');
-    if (await this.testFFmpegAvailability()) {
-      this.fallbackMethod = 'ffmpeg';
-      console.log('🎙️ Audio recording initialized with ffmpeg');
-      this.isInitialized = true;
-      return;
-    } else {
-      console.log('⚠️ FFmpeg test failed');
+    console.error('❌ No audio recording method available');
+    throw new Error('No audio recording method available');
+  }
+
+  private async testSox(): Promise<boolean> {
+    const soxPath = this.getSoxPath();
+    if (!soxPath) {
+      console.log('⚠️ Sox binary not found');
+      return false;
     }
 
-    console.warn('⚠️ No suitable audio recording method found');
-    this.fallbackMethod = 'none';
-    this.isInitialized = true;
+    try {
+      console.log(`🧪 Testing sox at: ${soxPath}`);
+      await this.runCommand(soxPath, ['--version'], 3000);
+      console.log('✅ Sox is available');
+      return true;
+    } catch (error) {
+      console.log('❌ Sox test failed:', error.message);
+      return false;
+    }
   }
 
-  private async testSoxBinary(soxPath: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      console.log('🧪 Testing sox binary:', soxPath);
-      const testProcess = spawn(soxPath, ['--version'], { 
-        stdio: ['ignore', 'pipe', 'pipe'] 
-      });
-      
-      let hasOutput = false;
-      let outputData = '';
-      
-      testProcess.stdout?.on('data', (data) => {
-        outputData += data.toString();
-        if (outputData.toLowerCase().includes('sox')) {
-          hasOutput = true;
-        }
-      });
-
-      testProcess.on('close', (code) => {
-        console.log(`🧪 Sox test result: code=${code}, hasOutput=${hasOutput}`);
-        if (outputData) console.log('📄 Sox output:', outputData.trim().split('\n')[0]);
-        resolve(code === 0 && hasOutput);
-      });
-
-      testProcess.on('error', (error) => {
-        console.log('🧪 Sox test error:', error.message);
-        resolve(false);
-      });
-
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        testProcess.kill();
-        console.log('🧪 Sox test timed out');
-        resolve(false);
-      }, 5000);
-    });
+  private async testFfmpeg(): Promise<boolean> {
+    try {
+      console.log('🧪 Testing ffmpeg availability...');
+      const result = await this.runCommand('ffmpeg', ['-version'], 5000);
+      console.log(`✅ FFmpeg is available: ${result.stdout.split('\n')[0]}`);
+      return true;
+    } catch (error) {
+      console.log('❌ FFmpeg test failed:', error.message);
+      return false;
+    }
   }
 
-  private async testPowerShellRecording(): Promise<boolean> {
-    if (process.platform !== 'win32') return false;
-    
-    return new Promise((resolve) => {
-      const testScript = `
+  private async testPowerShell(): Promise<boolean> {
+    if (process.platform !== 'win32') {
+      return false;
+    }
+
+    try {
+      console.log('🧪 Testing PowerShell Speech Recognition...');
+      const script = `
         try {
           Add-Type -AssemblyName System.Speech
-          $true
+          $recognizer = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+          Write-Output "PowerShell Speech Recognition available"
+          exit 0
         } catch {
-          $false
+          Write-Error $_.Exception.Message
+          exit 1
         }
       `;
       
-      console.log('🧪 Testing PowerShell Speech capabilities...');
-      const testProcess = spawn('powershell', ['-Command', testScript], {
-        stdio: ['ignore', 'pipe', 'pipe']
-      });
-
-      let result = false;
-      testProcess.stdout?.on('data', (data) => {
-        const output = data.toString().trim();
-        console.log('🧪 PowerShell test output:', output);
-        if (output === 'True') {
-          result = true;
-        }
-      });
-
-      testProcess.on('close', (code) => {
-        console.log(`🧪 PowerShell test result: code=${code}, result=${result}`);
-        resolve(result);
-      });
-
-      testProcess.on('error', (error) => {
-        console.log('🧪 PowerShell test error:', error.message);
-        resolve(false);
-      });
-
-      setTimeout(() => {
-        testProcess.kill();
-        console.log('🧪 PowerShell test timed out');
-        resolve(false);
-      }, 5000);
-    });
+      await this.runCommand('powershell', ['-Command', script], 5000);
+      console.log('✅ PowerShell Speech Recognition is available');
+      return true;
+    } catch (error) {
+      console.log('❌ PowerShell test failed:', error.message);
+      return false;
+    }
   }
 
-  private async testFFmpegAvailability(): Promise<boolean> {
-    return new Promise((resolve) => {
-      console.log('🧪 Testing ffmpeg availability...');
-      const testProcess = spawn('ffmpeg', ['-version'], {
-        stdio: ['ignore', 'pipe', 'pipe']
-      });
-
-      let hasOutput = false;
-      let outputData = '';
-      
-      testProcess.stdout?.on('data', (data) => {
-        outputData += data.toString();
-        if (outputData.toLowerCase().includes('ffmpeg')) {
-          hasOutput = true;
-        }
-      });
-
-      testProcess.on('close', (code) => {
-        console.log(`🧪 FFmpeg test result: code=${code}, hasOutput=${hasOutput}`);
-        if (outputData) console.log('📄 FFmpeg output:', outputData.trim().split('\n')[0]);
-        resolve(code === 0 && hasOutput);
-      });
-
-      testProcess.on('error', (error) => {
-        console.log('🧪 FFmpeg test error:', error.message);
-        resolve(false);
-      });
-
-      setTimeout(() => {
-        testProcess.kill();
-        console.log('🧪 FFmpeg test timed out');
-        resolve(false);
-      }, 5000);
-    });
-  }
-
-  private getSoxPath(): string {
-    const platform = process.platform;
-    const isDev = !app.isPackaged;
+  private getSoxPath(): string | null {
+    const isDev = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
     
-    let soxFilename: string;
-    switch (platform) {
-      case 'win32':
-        soxFilename = 'sox.exe';
-        break;
-      case 'darwin':
-        soxFilename = 'sox';
-        break;
-      case 'linux':
-      default:
-        soxFilename = 'sox';
-        break;
+    if (isDev) {
+      // Development mode paths
+      const devPaths = {
+        win32: join(process.cwd(), 'resources', 'binaries', 'windows', 'sox.exe'),
+        darwin: join(process.cwd(), 'resources', 'binaries', 'macos', 'sox'),
+        linux: join(process.cwd(), 'resources', 'binaries', 'linux', 'sox')
+      };
+      
+      const devPath = devPaths[process.platform as keyof typeof devPaths];
+      if (devPath && fs.existsSync(devPath)) {
+        console.log(`📁 Found dev sox at: ${devPath}`);
+        return devPath;
+      }
+    } else {
+      // Production mode paths
+      const prodPaths = {
+        win32: join(process.resourcesPath, 'resources', 'binaries', 'windows', 'sox.exe'),
+        darwin: join(process.resourcesPath, 'resources', 'binaries', 'macos', 'sox'),
+        linux: join(process.resourcesPath, 'resources', 'binaries', 'linux', 'sox')
+      };
+      
+      const prodPath = prodPaths[process.platform as keyof typeof prodPaths];
+      if (prodPath && fs.existsSync(prodPath)) {
+        console.log(`📦 Found prod sox at: ${prodPath}`);
+        return prodPath;
+      }
     }
 
-    if (isDev) {
-      // In development, use the binary from our resources directory
-      return join(__dirname, '..', 'resources', 'binaries', platform === 'win32' ? 'windows' : platform === 'darwin' ? 'macos' : 'linux', soxFilename);
-    } else {
-      // In production, use the binary from the packaged resources
-      return join(process.resourcesPath, 'resources', 'binaries', platform === 'win32' ? 'windows' : platform === 'darwin' ? 'macos' : 'linux', soxFilename);
+    // Try system sox
+    const systemPaths = {
+      win32: ['sox.exe', 'C:\\Program Files\\sox\\sox.exe', 'C:\\Program Files (x86)\\sox\\sox.exe'],
+      darwin: ['sox', '/usr/local/bin/sox', '/opt/homebrew/bin/sox'],
+      linux: ['sox', '/usr/bin/sox', '/usr/local/bin/sox']
+    };
+
+    const paths = systemPaths[process.platform as keyof typeof systemPaths] || [];
+    for (const soxPath of paths) {
+      try {
+        if (fs.existsSync(soxPath) || soxPath === 'sox' || soxPath === 'sox.exe') {
+          console.log(`🔍 Trying system sox: ${soxPath}`);
+          return soxPath;
+        }
+      } catch (error) {
+        // Continue to next path
+      }
     }
+
+    console.log('❌ No sox binary found');
+    return null;
+  }
+
+  private runCommand(command: string, args: string[], timeout: number = 10000): Promise<{stdout: string, stderr: string}> {
+    return new Promise((resolve, reject) => {
+      console.log(`🔧 Running: ${command} ${args.join(' ')}`);
+      
+      const process = spawn(command, args, {
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      let stdout = '';
+      let stderr = '';
+      let timeoutId: NodeJS.Timeout;
+
+      const cleanup = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (!process.killed) {
+          process.kill();
+        }
+      };
+
+      timeoutId = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Command timed out after ${timeout}ms`));
+      }, timeout);
+
+      process.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      process.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      process.on('close', (code) => {
+        cleanup();
+        if (code === 0) {
+          resolve({ stdout, stderr });
+        } else {
+          reject(new Error(`Command failed with exit code ${code}: ${stderr || stdout}`));
+        }
+      });
+
+      process.on('error', (error) => {
+        cleanup();
+        reject(error);
+      });
+    });
   }
 
   async start(): Promise<void> {
@@ -239,8 +230,8 @@ export class AudioRecorder extends EventEmitter {
       }
     }
 
-    this.filePath = join(tmpdir(), `recording_${Date.now()}.wav`);
-    console.log('📁 Recording file path:', this.filePath);
+    this.outputFile = join(tmpdir(), `recording_${Date.now()}.wav`);
+    console.log('📁 Recording file path:', this.outputFile);
     console.log('🔧 Using recording method:', this.fallbackMethod);
 
     try {
@@ -281,13 +272,13 @@ export class AudioRecorder extends EventEmitter {
     const soxArgs = [
       '-d', // default input device
       '-t', 'wav', // output format
-      this.filePath!,
+      this.outputFile,
       'rate', '16000', // sample rate
       'channels', '1' // mono
     ];
     
     console.log('🔧 Starting sox with args:', soxArgs);
-    this.recording = spawn(soxPath, soxArgs);
+    this.recordingProcess = spawn(soxPath, soxArgs);
 
     this.setupRecordingHandlers('sox');
   }
@@ -298,7 +289,7 @@ export class AudioRecorder extends EventEmitter {
     // This is a simplified PowerShell recording approach
     // In a real implementation, you'd need more sophisticated audio capture
     const psScript = `
-      $outputPath = "${this.filePath!.replace(/\\/g, '\\\\')}"
+      $outputPath = "${this.outputFile.replace(/\\/g, '\\\\')}"
       Write-Host "Recording to: $outputPath"
       
       # Create a simple WAV file header for 16kHz mono
@@ -311,7 +302,7 @@ export class AudioRecorder extends EventEmitter {
       Write-Host "PowerShell recording simulation complete"
     `;
 
-    this.recording = spawn('powershell', ['-Command', psScript]);
+    this.recordingProcess = spawn('powershell', ['-Command', psScript]);
     this.setupRecordingHandlers('powershell');
   }
 
@@ -329,7 +320,7 @@ export class AudioRecorder extends EventEmitter {
         '-ar', '16000',
         '-ac', '1',
         '-y', // overwrite output file
-        this.filePath!
+        this.outputFile
       ];
     } else if (process.platform === 'darwin') {
       // macOS: use avfoundation
@@ -340,7 +331,7 @@ export class AudioRecorder extends EventEmitter {
         '-ar', '16000',
         '-ac', '1',
         '-y', // overwrite output file
-        this.filePath!
+        this.outputFile
       ];
     } else {
       // Linux: use ALSA
@@ -351,20 +342,20 @@ export class AudioRecorder extends EventEmitter {
         '-ar', '16000',
         '-ac', '1',
         '-y', // overwrite output file
-        this.filePath!
+        this.outputFile
       ];
     }
 
     console.log('🔧 Starting ffmpeg with args:', ffmpegArgs);
-    this.recording = spawn('ffmpeg', ffmpegArgs);
+    this.recordingProcess = spawn('ffmpeg', ffmpegArgs);
     this.setupRecordingHandlers('ffmpeg');
   }
 
   private setupRecordingHandlers(method: string): void {
-    if (!this.recording) return;
+    if (!this.recordingProcess) return;
 
-    if (this.recording.stderr) {
-      this.recording.stderr.on('data', (data) => {
+    if (this.recordingProcess.stderr) {
+      this.recordingProcess.stderr.on('data', (data) => {
         const output = data.toString();
         // Only log significant errors, not normal ffmpeg output
         if (output.toLowerCase().includes('error') || output.toLowerCase().includes('failed')) {
@@ -373,19 +364,19 @@ export class AudioRecorder extends EventEmitter {
       });
     }
 
-    this.recording.on('error', (err: any) => {
+    this.recordingProcess.on('error', (err: any) => {
       console.error(`❌ ${method} recording error:`, err);
       this.emit('error', err);
       this.isRecording = false;
       this.cleanUp();
     });
 
-    this.recording.on('close', (code) => {
+    this.recordingProcess.on('close', (code) => {
       console.log(`🔚 ${method} process exited with code:`, code);
       if (this.isRecording) {
-        console.log('✅ Finished writing audio to file:', this.filePath);
-        if (this.filePath && fs.existsSync(this.filePath)) {
-          this.emit('finished', this.filePath);
+        console.log('✅ Finished writing audio to file:', this.outputFile);
+        if (this.outputFile && fs.existsSync(this.outputFile)) {
+          this.emit('finished', this.outputFile);
         } else {
           console.warn('⚠️ Audio file was not created or is missing');
           this.emit('error', new Error('Recording file was not created'));
@@ -396,7 +387,7 @@ export class AudioRecorder extends EventEmitter {
     });
       
     this.isRecording = true;
-    console.log(`🎤 ${method} recording started, PID:`, this.recording.pid);
+    console.log(`🎤 ${method} recording started, PID:`, this.recordingProcess.pid);
     
     // Emit fake audio data for visualizer (since we can't easily get real-time data from all methods)
     const visualizerInterval = setInterval(() => {
@@ -419,19 +410,19 @@ export class AudioRecorder extends EventEmitter {
   stop(): void {
     console.log('🛑 AudioRecorder.stop() called');
     
-    if (!this.isRecording || !this.recording) {
+    if (!this.isRecording || !this.recordingProcess) {
       console.log('⚠️ Cannot stop: not recording or no recording process');
       return;
     }
     
-    console.log(`🔪 Sending SIGTERM to ${this.fallbackMethod} process PID:`, this.recording.pid);
+    console.log(`🔪 Sending SIGTERM to ${this.fallbackMethod} process PID:`, this.recordingProcess.pid);
     // Send SIGTERM to gracefully stop the recording process
-    this.recording.kill('SIGTERM');
+    this.recordingProcess.kill('SIGTERM');
     console.log('🎤 Recording stop signal sent');
   }
   
   private cleanUp() {
-    this.recording = null;
+    this.recordingProcess = null;
   }
 
   // Utility method to check if recording is available

@@ -11,11 +11,11 @@
     "publish": "npm run setup:python && npm run build:python && electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
     "setup:python": "node scripts/setup-python.js",
+    "setup:audio": "node scripts/setup-audio-binaries.js",
     "build:python": "node scripts/build-python.js",
     "clean:python": "rm -rf python-env",
     "dev": "electron-forge start",
-    "postinstall": "node scripts/setup-python.js || echo 'Python setup skipped'",
-    "setup-audio": "node scripts/setup-dev-audio.js"
+    "postinstall": "node scripts/setup-python.js || echo 'Python setup skipped'"
   },
   "keywords": [],
   "author": {

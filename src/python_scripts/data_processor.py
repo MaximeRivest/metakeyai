@@ -313,28 +313,22 @@ def process_plain_text(text: str, operation: str) -> Dict[str, Any]:
     else:
         return {'processed_data': text}
 
-def main():
-    """Main function to process stdin and output results."""
+# Daemon-friendly entry point
+def main(text: str) -> str:
+    result = process_data(text, operation='analyze')
+    return json.dumps(result, indent=2)
+
+# CLI wrapper
+def _cli():
     try:
-        # Read text from stdin
-        text = sys.stdin.read().strip()
-        
-        if not text:
-            print(json.dumps({'error': 'No data provided'}))
+        inp = sys.stdin.read().strip()
+        if not inp:
+            print(json.dumps({'error': 'No input text'}))
             return
-        
-        # Get operation from command line argument
-        operation = sys.argv[1] if len(sys.argv) > 1 else 'analyze'
-        
-        # Process the data
-        result = process_data(text, operation)
-        
-        # Output as JSON
-        print(json.dumps(result, indent=2))
-        
+        print(main(inp))
     except Exception as e:
         print(json.dumps({'error': str(e)}))
         sys.exit(1)
 
 if __name__ == '__main__':
-    main()
+    _cli()

@@ -414,44 +414,19 @@
             <p>Configure your AI models and preferences</p>
         </div>
 
-        <!-- API Configuration -->
+        <!-- Speech-to-Text -->
         <div class="section">
-            <div class="section-title">
-                🔑 API Configuration
-                <div class="api-status" id="api-status">
-                    <div class="api-status-dot"></div>
-                    <span>Checking...</span>
-                </div>
-            </div>
+            <div class="section-title">🗣️ Speech-to-Text</div>
             <div class="section-description">
-                Configure your OpenAI API key and connection settings.
+                Configure your OpenAI credentials and model for voice transcription (Ctrl+Alt+W).
             </div>
-            
+
             <div class="form-group">
                 <label class="form-label" for="api-key">OpenAI API Key</label>
                 <input type="password" id="api-key" class="form-input" placeholder="sk-..." />
                 <div class="form-help">
-                    Your API key is stored locally and never shared. Get one from <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #4CAF50;">OpenAI Platform</a>.
-                </div>
-            </div>
-        </div>
-
-        <!-- AI Models -->
-        <div class="section">
-            <div class="section-title">🤖 AI Models</div>
-            <div class="section-description">
-                Choose the AI models for different features. Better models may cost more but provide higher quality results.
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label" for="quick-edit-model">Quick Edit Model</label>
-                <select id="quick-edit-model" class="form-select">
-                    <option value="gpt-4.1">GPT-4.1 (Recommended)</option>
-                    <option value="gpt-4o">GPT-4o</option>
-                    <option value="o3">o3</option>
-                </select>
-                <div class="form-help">
-                    Used for Ctrl+Alt+Q quick text editing and improvements.
+                    Your key is stored locally and never shared. Create one at
+                    <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#4CAF50;">platform.openai.com</a>.
                 </div>
             </div>
 
@@ -461,8 +436,12 @@
                     <option value="whisper-1">Whisper v1 (Standard)</option>
                 </select>
                 <div class="form-help">
-                    Used for Ctrl+Alt+W voice recording transcription.
+                    Used when converting your recordings to text.
                 </div>
+            </div>
+
+            <div class="api-status" id="api-status" style="margin-top:12px;">
+                <div class="api-status-dot"></div><span>Checking...</span>
             </div>
         </div>
 
@@ -496,8 +475,39 @@
             </div>
         </div>
 
+        <!-- Environments & LLM -->
+        <div class="section" id="env-section">
+            <div class="section-title">🔑 Environments &amp; LLM</div>
+            <p class="section-description">
+                Define environment variables (API keys, BASE_URL, etc.) used by the Python backend. <br/>
+                <code>METAKEYAI_LLM</code> selects the default model string for DSPy/LightLLM.
+            </p>
+            <div id="env-table"></div>
+            <button class="btn" id="add-env-row">＋ Add Variable</button>
+
+            <div class="form-group" style="margin-top:20px;">
+                <label class="form-label">Available LLMs</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <select id="llm-select" class="form-select" style="flex:1;"></select>
+                    <button class="btn" id="delete-llm" title="Delete selected LLM">✖</button>
+                </div>
+                <div class="form-help">The selected model will be exported as <code>METAKEYAI_LLM</code>.</div>
+            </div>
+
+            <div class="form-group" style="margin-top:12px; display:flex; gap:8px;">
+                <input class="form-input" id="llm-input" style="flex:1;" placeholder="Add new LLM e.g. openai/gpt-4o" />
+                <button class="btn" id="add-llm">＋ Add</button>
+            </div>
+
+            <div class="actions-right" style="margin-top:16px;">
+                <button class="btn primary" id="test-env">Test &amp; Save</button>
+            </div>
+
+            <div id="env-status" class="status"></div>
+        </div>
+
         <!-- Keyboard Shortcuts Configuration -->
-        <div class="section">
+        <div class="section" id="shortcuts-section">
             <div class="section-title">⌨️ Keyboard Shortcuts</div>
             <div class="section-description">
                 Customize keyboard shortcuts for all MetaKeyAI features. Click on any shortcut to change it.

@@ -1,4 +1,5 @@
 import { PythonRunner, PythonRunOptions } from './python-runner';
+import { PythonDaemon } from './python-daemon';
 import { ipcMain, BrowserWindow, globalShortcut, dialog, app } from 'electron';
 import path from 'path';
 import fs from 'fs';
@@ -31,6 +32,7 @@ export interface SpellResult {
 
 export class PythonSpellCaster {
   private pythonRunner: PythonRunner;
+  private pythonDaemon: PythonDaemon | null = null;
   private spellBook: Map<string, PythonSpell> = new Map();
   private quickSlots: (PythonSpell | null)[] = new Array(9).fill(null);
   private spellBookPath: string;
@@ -86,6 +88,9 @@ export class PythonSpellCaster {
       } else {
         console.log('⚙️ Using system Python environment');
       }
+
+      // Start the shared Python daemon (only once for entire app)
+      this.pythonDaemon = await PythonDaemon.getInstance();
 
       // Load spell book
       await this.loadSpellBook();
@@ -214,7 +219,37 @@ export class PythonSpellCaster {
     const startTime = Date.now();
 
     try {
-      // Prepare Python run options
+      // If the Python daemon is available and the spell has a script file, use it
+      if (this.pythonDaemon && spell.scriptFile) {
+        try {
+          const daemonRes = await this.pythonDaemon.castSpell(
+            spell.id,
+            path.resolve(spell.scriptFile),
+            spell.requiresInput !== false ? input : undefined
+          );
+
+          const executionTime = daemonRes.executionTime || (Date.now() - startTime);
+
+          const processedOutput = typeof daemonRes.output === 'string' ? daemonRes.output : JSON.stringify(daemonRes.output);
+
+          const spellResult: SpellResult = {
+            spellId: spell.id,
+            spellName: spell.name,
+            success: daemonRes.success !== false,
+            output: processedOutput,
+            executionTime,
+            error: daemonRes.error
+          };
+
+          await this.handleSpellOutput(spell, processedOutput);
+          return spellResult;
+        } catch (err) {
+          console.warn('⚠️ Python daemon cast failed, falling back to one-off runner:', (err as Error).message);
+          // fall through to one-off execution below
+        }
+      }
+
+      // Prepare Python run options (fallback)
       const runOptions: PythonRunOptions = {
         timeout: spell.timeout || 30000,
         input: spell.requiresInput !== false ? input : undefined
@@ -232,7 +267,7 @@ export class PythonSpellCaster {
         runOptions.args = spell.args;
       }
 
-      // Execute the spell
+      // Execute the spell via one-off Python process
       const result = await this.pythonRunner.run(runOptions);
       const executionTime = Date.now() - startTime;
 
@@ -354,222 +389,66 @@ export class PythonSpellCaster {
   private async registerDefaultSpells(): Promise<void> {
     console.log('📚 Registering default spells...');
 
-    const defaultSpells: PythonSpell[] = [
-      {
-        id: 'text-analyzer',
-        name: 'Text Analyzer',
-        description: 'Analyze text for word count, complexity, and insights',
-        scriptFile: this.getScriptPath('text_analyzer.py'),
-        category: 'analysis',
-        icon: '📊',
-        requiresInput: true,
-        outputFormat: 'json',
-        estimatedTime: '< 1 second',
-        timeout: 10000
-      },
-      {
-        id: 'data-processor',
-        name: 'Data Processor',
-        description: 'Process and analyze CSV, JSON, and other data formats',
-        scriptFile: this.getScriptPath('data_processor.py'),
-        category: 'data',
-        icon: '🔄',
-        requiresInput: true,
-        outputFormat: 'json',
-        estimatedTime: '1-3 seconds',
-        timeout: 15000
-      },
-      {
-        id: 'word-counter',
-        name: 'Quick Word Count',
-        description: 'Count words, characters, and lines',
-        script: `
-import sys
-import json
-
-text = sys.stdin.read().strip()
-words = len(text.split())
-chars = len(text)
-chars_no_spaces = len(text.replace(' ', ''))
-lines = len(text.split('\\n'))
-
-result = {
-    'words': words,
-    'characters': chars,
-    'characters_no_spaces': chars_no_spaces,
-    'lines': lines
-}
-
-print(json.dumps(result, indent=2))
-        `,
-        category: 'text',
-        icon: '🔢',
-        requiresInput: true,
-        outputFormat: 'json',
-        estimatedTime: '< 1 second',
-        timeout: 5000
-      },
-      {
-        id: 'text-cleaner',
-        name: 'Text Cleaner',
-        description: 'Clean and format text (remove extra spaces, fix line breaks)',
-        script: `
-import sys
-import re
-
-text = sys.stdin.read()
-
-# Remove extra whitespace
-cleaned = re.sub(r'\\s+', ' ', text)
-# Fix line breaks
-cleaned = re.sub(r'\\n\\s*\\n', '\\n\\n', cleaned)
-# Trim
-cleaned = cleaned.strip()
-
-print(cleaned)
-        `,
-        category: 'text',
-        icon: '🧹',
-        requiresInput: true,
-        outputFormat: 'replace',
-        estimatedTime: '< 1 second',
-        timeout: 5000
-      },
-      {
-        id: 'json-formatter',
-        name: 'JSON Formatter',
-        description: 'Pretty-print and validate JSON data',
-        script: `
-import sys
-import json
-
-text = sys.stdin.read().strip()
-
-try:
-    data = json.loads(text)
-    formatted = json.dumps(data, indent=2, sort_keys=True)
-    print(formatted)
-except json.JSONDecodeError as e:
-    print(f"Invalid JSON: {e}")
-    sys.exit(1)
-        `,
-        category: 'data',
-        icon: '📝',
-        requiresInput: true,
-        outputFormat: 'replace',
-        estimatedTime: '< 1 second',
-        timeout: 5000
-      },
-      {
-        id: 'url-extractor',
-        name: 'URL Extractor',
-        description: 'Extract all URLs from text',
-        script: `
-import sys
-import re
-import json
-
-text = sys.stdin.read()
-urls = re.findall(r'https?://[^\\s]+', text)
-
-result = {
-    'urls': urls,
-    'count': len(urls),
-    'unique_urls': list(set(urls))
-}
-
-print(json.dumps(result, indent=2))
-        `,
-        category: 'text',
-        icon: '🔗',
-        requiresInput: true,
-        outputFormat: 'json',
-        estimatedTime: '< 1 second',
-        timeout: 5000
-      },
-      {
-        id: 'email-extractor',
-        name: 'Email Extractor',
-        description: 'Extract all email addresses from text',
-        script: `
-import sys
-import re
-import json
-
-text = sys.stdin.read()
-emails = re.findall(r'\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b', text)
-
-result = {
-    'emails': emails,
-    'count': len(emails),
-    'unique_emails': list(set(emails)),
-    'domains': list(set([email.split('@')[1] for email in emails]))
-}
-
-print(json.dumps(result, indent=2))
-        `,
-        category: 'text',
-        icon: '📧',
-        requiresInput: true,
-        outputFormat: 'json',
-        estimatedTime: '< 1 second',
-        timeout: 5000
-      },
-      {
-        id: 'list-sorter',
-        name: 'List Sorter',
-        description: 'Sort lines of text alphabetically',
-        script: `
-import sys
-
-text = sys.stdin.read().strip()
-lines = [line.strip() for line in text.split('\\n') if line.strip()]
-sorted_lines = sorted(lines)
-
-print('\\n'.join(sorted_lines))
-        `,
-        category: 'text',
-        icon: '📋',
-        requiresInput: true,
-        outputFormat: 'replace',
-        estimatedTime: '< 1 second',
-        timeout: 5000
-      },
-      {
-        id: 'duplicate-remover',
-        name: 'Duplicate Remover',
-        description: 'Remove duplicate lines from text',
-        script: `
-import sys
-
-text = sys.stdin.read().strip()
-lines = [line.strip() for line in text.split('\\n') if line.strip()]
-unique_lines = list(dict.fromkeys(lines))  # Preserves order
-
-print('\\n'.join(unique_lines))
-        `,
-        category: 'text',
-        icon: '🗑️',
-        requiresInput: true,
-        outputFormat: 'replace',
-        estimatedTime: '< 1 second',
-        timeout: 5000
+    // 1) Try to fetch spells advertised by the Python daemon
+    let discovered: any[] = [];
+    if (this.pythonDaemon) {
+      try {
+        discovered = await this.pythonDaemon.listSpells();
+        console.log('🔍 Daemon reported', discovered.length, 'spells');
+      } catch (err) {
+        console.warn('⚠️ Could not list spells from daemon:', (err as Error).message);
       }
-    ];
+    }
 
-    // Add default spells to the spell book
-    for (const spell of defaultSpells) {
+    // 2) Convert meta objects → PythonSpell and register
+    for (const meta of discovered) {
+      const spell: PythonSpell = {
+        id: meta.id,
+        name: meta.name || meta.id,
+        description: meta.description || '',
+        scriptFile: meta.scriptFile,
+        category: meta.category || 'misc',
+        icon: meta.icon,
+        requiresInput: true,
+        outputFormat: 'text',
+      };
       this.spellBook.set(spell.id, spell);
     }
 
-    // Set up default quick slots
-    this.quickSlots[0] = this.spellBook.get('text-analyzer') || null;  // Ctrl+Alt+1
-    this.quickSlots[1] = this.spellBook.get('data-processor') || null; // Ctrl+Alt+2
-    this.quickSlots[2] = this.spellBook.get('word-counter') || null;    // Ctrl+Alt+3
-    this.quickSlots[3] = this.spellBook.get('text-cleaner') || null;    // Ctrl+Alt+4
-    this.quickSlots[4] = this.spellBook.get('json-formatter') || null;  // Ctrl+Alt+5
+    // 3) If nothing discovered, register two tiny placeholder spells to teach users
+    if (this.spellBook.size === 0) {
+      const echoPath = this.getScriptPath(path.join('spells', 'echo.py'));
+      const wcPath = this.getScriptPath(path.join('spells', 'word_count.py'));
 
-    console.log(`✅ Registered ${defaultSpells.length} default spells`);
+      const placeholders: PythonSpell[] = [
+        {
+          id: 'echo',
+          name: 'Echo',
+          description: 'Returns the input unchanged. Use it as a template for new spells.',
+          scriptFile: echoPath,
+          category: 'text',
+          icon: '🪞',
+          requiresInput: true,
+          outputFormat: 'replace',
+        },
+        {
+          id: 'word_count',
+          name: 'Word Count',
+          description: 'Counts words and characters – another simple template.',
+          scriptFile: wcPath,
+          category: 'text',
+          icon: '🔢',
+          requiresInput: true,
+          outputFormat: 'text',
+        },
+      ];
+
+      for (const p of placeholders) {
+        this.spellBook.set(p.id, p);
+      }
+    }
+
+    console.log('📖 Default spells registered:', Array.from(this.spellBook.keys()));
   }
 
   private async loadSpellBook(): Promise<void> {
@@ -599,20 +478,9 @@ print('\\n'.join(unique_lines))
 
   private async saveSpellBook(): Promise<void> {
     try {
-      const customSpells = Array.from(this.spellBook.values())
-        .filter(spell => !spell.id.startsWith('text-analyzer') && 
-                        !spell.id.startsWith('data-processor') &&
-                        !spell.id.startsWith('word-counter') &&
-                        !spell.id.startsWith('text-cleaner') &&
-                        !spell.id.startsWith('json-formatter') &&
-                        !spell.id.startsWith('url-extractor') &&
-                        !spell.id.startsWith('email-extractor') &&
-                        !spell.id.startsWith('list-sorter') &&
-                        !spell.id.startsWith('duplicate-remover'));
-
       const data = {
-        spells: customSpells,
-        quickSlots: this.quickSlots
+        spells: Array.from(this.spellBook.values()),
+        quickSlots: this.quickSlots,
       };
 
       fs.writeFileSync(this.spellBookPath, JSON.stringify(data, null, 2));
@@ -701,53 +569,79 @@ print('\\n'.join(unique_lines))
 
   // Test a spell without registering it
   async testSpell(spellData: Partial<PythonSpell>, input?: string): Promise<SpellResult> {
-    console.log('🧪 Testing spell:', spellData.name);
-    
-    const startTime = Date.now();
-    
-    try {
-      // Prepare Python run options
-      const runOptions: PythonRunOptions = {
-        timeout: spellData.timeout || 10000,
-        input: input
-      };
+    console.log('🧪 Testing spell:', spellData.name || 'Untitled Spell');
 
-      let result;
-      if (spellData.script) {
-        // Run inline script
-        result = await this.pythonRunner.run({
-          ...runOptions,
-          script: spellData.script
-        });
-      } else {
-        throw new Error('No script provided for testing');
+    const spell: PythonSpell = {
+      id: 'test-spell',
+      name: spellData.name || 'Test Spell',
+      description: spellData.description || '',
+      script: spellData.script || '',
+      scriptFile: spellData.scriptFile,
+      category: spellData.category || 'text',
+      requiresInput: spellData.requiresInput !== false,
+      outputFormat: spellData.outputFormat || 'text',
+      timeout: spellData.timeout || 15000,
+    };
+
+    const startTime = Date.now();
+
+    try {
+      if (!this.pythonDaemon) {
+        throw new Error('Python daemon is not running. Cannot test spell.');
       }
 
-      const executionTime = Date.now() - startTime;
-      
+      let scriptFileToRun = spell.scriptFile;
+      let tempFilePath: string | null = null;
+
+      // If there's inline script content, write it to a temp file
+      if (spell.script) {
+        tempFilePath = path.join(app.getPath('temp'), `test-spell-${Date.now()}.py`);
+        fs.writeFileSync(tempFilePath, spell.script);
+        scriptFileToRun = tempFilePath;
+      }
+
+      if (!scriptFileToRun) {
+        throw new Error('No Python script provided for the spell.');
+      }
+
+      const daemonResult = await this.pythonDaemon.castSpell(
+        spell.id,
+        scriptFileToRun,
+        spell.requiresInput ? input : undefined
+      );
+
+      // Clean up temp file if created
+      if (tempFilePath) {
+        try {
+          fs.unlinkSync(tempFilePath);
+        } catch (e) {
+          console.warn(`⚠️ Failed to delete temp spell file: ${tempFilePath}`, e);
+        }
+      }
+
       const spellResult: SpellResult = {
-        spellId: 'test-spell',
-        spellName: spellData.name || 'Test Spell',
-        success: result.success,
-        output: result.stdout,
-        executionTime,
-        error: result.success ? undefined : result.stderr
+        spellId: spell.id,
+        spellName: spell.name,
+        success: daemonResult.success,
+        output: daemonResult.output,
+        executionTime: daemonResult.executionTime,
+        error: daemonResult.error,
       };
 
-      console.log('🧪 Test completed:', spellResult.success ? '✅' : '❌', `(${executionTime}ms)`);
+      this.showSpellResult(spellResult);
       return spellResult;
       
     } catch (error) {
-      const executionTime = Date.now() - startTime;
       console.error('❌ Test failed:', error);
-      
+      const executionTime = Date.now() - startTime;
+
       return {
-        spellId: 'test-spell',
-        spellName: spellData.name || 'Test Spell',
+        spellId: spell.id,
+        spellName: spell.name,
         success: false,
         output: '',
         executionTime,
-        error: (error as Error).message
+        error: (error as Error).message,
       };
     }
   }

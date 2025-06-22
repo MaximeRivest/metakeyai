@@ -2,7 +2,6 @@ const { ipcRenderer: settingsIpcRenderer } = require('electron');
 
 interface Settings {
   OPENAI_API_KEY: string;
-  QUICK_EDIT_MODEL_OPENAI: string;
   WHISPER_MODEL: string;
   TTS_VOICE: string;
 }
@@ -18,7 +17,6 @@ interface ShortcutConfig {
 
 class SettingsRenderer {
   private apiKeyInput: HTMLInputElement;
-  private quickEditModelSelect: HTMLSelectElement;
   private whisperModelSelect: HTMLSelectElement;
   private ttsVoiceSelect: HTMLSelectElement;
   private testVoiceBtn: HTMLButtonElement;
@@ -28,20 +26,28 @@ class SettingsRenderer {
   private saveStatus: HTMLElement;
   private apiStatus: HTMLElement;
   private shortcutsContainer: HTMLElement;
+  private envTable: HTMLElement;
+  private addEnvRowBtn: HTMLButtonElement;
+  private llmSelect: HTMLSelectElement;
+  private llmInput: HTMLInputElement;
+  private addLlmBtn: HTMLButtonElement;
+  private deleteLlmBtn: HTMLButtonElement;
+  private testEnvBtn: HTMLButtonElement;
+  private envStatus: HTMLElement;
   
   private shortcuts: ShortcutConfig[] = [];
   private editingShortcut: string | null = null;
+  private envVars: Record<string,string> = {};
+  private llms: string[] = [];
   
   private currentSettings: Settings = {
     OPENAI_API_KEY: '',
-    QUICK_EDIT_MODEL_OPENAI: 'gpt-4o',
     WHISPER_MODEL: 'whisper-1',
     TTS_VOICE: 'ballad'
   };
 
   constructor() {
     this.apiKeyInput = document.getElementById('api-key') as HTMLInputElement;
-    this.quickEditModelSelect = document.getElementById('quick-edit-model') as HTMLSelectElement;
     this.whisperModelSelect = document.getElementById('whisper-model') as HTMLSelectElement;
     this.ttsVoiceSelect = document.getElementById('tts-voice') as HTMLSelectElement;
     this.testVoiceBtn = document.getElementById('test-voice') as HTMLButtonElement;
@@ -51,10 +57,19 @@ class SettingsRenderer {
     this.saveStatus = document.getElementById('save-status')!;
     this.apiStatus = document.getElementById('api-status')!;
     this.shortcutsContainer = document.getElementById('shortcuts-container')!;
+    this.envTable = document.getElementById('env-table')!;
+    this.addEnvRowBtn = document.getElementById('add-env-row') as HTMLButtonElement;
+    this.llmSelect = document.getElementById('llm-select') as HTMLSelectElement;
+    this.llmInput = document.getElementById('llm-input') as HTMLInputElement;
+    this.addLlmBtn = document.getElementById('add-llm') as HTMLButtonElement;
+    this.deleteLlmBtn = document.getElementById('delete-llm') as HTMLButtonElement;
+    this.testEnvBtn = document.getElementById('test-env') as HTMLButtonElement;
+    this.envStatus = document.getElementById('env-status')!;
 
     this.setupEventListeners();
     this.loadSettings();
     this.loadShortcuts();
+    this.loadEnvSettings();
   }
 
   private setupEventListeners() {
@@ -84,7 +99,7 @@ class SettingsRenderer {
     });
 
     // Form change detection
-    [this.apiKeyInput, this.quickEditModelSelect, this.whisperModelSelect, this.ttsVoiceSelect].forEach(element => {
+    [this.apiKeyInput, this.whisperModelSelect, this.ttsVoiceSelect].forEach(element => {
       element.addEventListener('change', () => {
         this.markUnsaved();
       });
@@ -104,6 +119,25 @@ class SettingsRenderer {
     settingsIpcRenderer.on('api-key-validated', (event: any, isValid: boolean) => {
       this.updateApiStatus(isValid);
     });
+
+    // Env rows
+    this.addEnvRowBtn.addEventListener('click', () => this.addEnvRow());
+
+    // LLM add/delete/select handlers
+    this.addLlmBtn.addEventListener('click', () => this.handleAddLlm());
+    this.deleteLlmBtn.addEventListener('click', () => this.handleDeleteLlm());
+    this.llmSelect.addEventListener('change', () => this.markUnsaved());
+
+    // Test & save env button
+    this.testEnvBtn.addEventListener('click', () => {
+      this.saveEnvSettings();
+    });
+
+    settingsIpcRenderer.on('env-saved', (_e: any, ok: boolean, msg: string) => {
+      this.envStatus.textContent = msg;
+      this.envStatus.className = ok ? 'status success' : 'status error';
+      if (ok) setTimeout(()=>this.envStatus.textContent='',3000);
+    });
   }
 
   private loadSettings() {
@@ -120,7 +154,6 @@ class SettingsRenderer {
       this.apiKeyInput.setAttribute('data-full-key', this.currentSettings.OPENAI_API_KEY);
     }
     
-    this.quickEditModelSelect.value = this.currentSettings.QUICK_EDIT_MODEL_OPENAI;
     this.whisperModelSelect.value = this.currentSettings.WHISPER_MODEL;
     this.ttsVoiceSelect.value = this.currentSettings.TTS_VOICE;
 
@@ -132,7 +165,6 @@ class SettingsRenderer {
     
     const settings: Settings = {
       OPENAI_API_KEY: this.getApiKey(),
-      QUICK_EDIT_MODEL_OPENAI: this.quickEditModelSelect.value,
       WHISPER_MODEL: this.whisperModelSelect.value,
       TTS_VOICE: this.ttsVoiceSelect.value
     };
@@ -151,7 +183,6 @@ class SettingsRenderer {
     
     this.apiKeyInput.value = '';
     this.apiKeyInput.removeAttribute('data-full-key');
-    this.quickEditModelSelect.value = 'gpt-4.1';
     this.whisperModelSelect.value = 'whisper-1';
     this.ttsVoiceSelect.value = 'Nova';
     
@@ -523,6 +554,109 @@ class SettingsRenderer {
       if (success) {
         await this.loadShortcuts(); // Reload to get updated data
       }
+    }
+  }
+
+  private async loadEnvSettings() {
+    try {
+      const data = await settingsIpcRenderer.invoke('load-env');
+      this.envVars = data?.env || {};
+      const selected = data?.llm || '';
+      this.llms = Array.isArray(data?.llms) ? data.llms : [];
+      if (selected && !this.llms.includes(selected)) {
+        this.llms.push(selected);
+      }
+      if (this.llms.length === 0) {
+        if (selected) this.llms.push(selected);
+        else this.llms = [];
+      }
+      this.renderLlmSelect(selected);
+      this.renderEnvTable();
+    } catch (err) {
+      console.error('❌ Failed to load env settings', err);
+    }
+  }
+
+  private renderEnvTable() {
+    this.envTable.innerHTML = '';
+    Object.entries(this.envVars).forEach(([k,v]) => this.addEnvRow(k,v));
+  }
+
+  private addEnvRow(key = '', value = '') {
+    const row = document.createElement('div');
+    row.className = 'env-row';
+    row.innerHTML = `
+      <input class="form-input env-key" placeholder="NAME" value="${key}"> 
+      <input class="form-input env-val" placeholder="value" value="${value}"> 
+      <span class="btn delete-row">✖</span>`;
+    this.envTable.appendChild(row);
+
+    const keyInput = row.querySelector('.env-key') as HTMLInputElement;
+    const valInput = row.querySelector('.env-val') as HTMLInputElement;
+    const delBtn = row.querySelector('.delete-row') as HTMLElement;
+
+    const sync = () => {
+      const k = keyInput.value.trim();
+      const v = valInput.value.trim();
+      if (k) {
+        this.envVars[k] = v;
+      }
+    };
+
+    keyInput.addEventListener('input', sync);
+    valInput.addEventListener('input', sync);
+    delBtn.addEventListener('click', () => {
+      const k = keyInput.value.trim();
+      if (k && this.envVars[k]) delete this.envVars[k];
+      row.remove();
+    });
+  }
+
+  private renderLlmSelect(selected: string) {
+    this.llmSelect.innerHTML = '';
+    this.llms.forEach(llm => {
+      const opt = document.createElement('option');
+      opt.value = llm;
+      opt.textContent = llm;
+      this.llmSelect.appendChild(opt);
+    });
+    if (selected) this.llmSelect.value = selected;
+  }
+
+  private handleAddLlm() {
+    const val = this.llmInput.value.trim();
+    if (!val) return;
+    if (!this.llms.includes(val)) {
+      this.llms.push(val);
+      this.renderLlmSelect(val);
+      this.markUnsaved();
+    }
+    this.llmInput.value = '';
+  }
+
+  private handleDeleteLlm() {
+    const current = this.llmSelect.value;
+    if (!current) return;
+    if (confirm(`Delete LLM "${current}"?`)) {
+      this.llms = this.llms.filter(l => l !== current);
+      const newSelected = this.llms[0] || '';
+      this.renderLlmSelect(newSelected);
+      this.markUnsaved();
+    }
+  }
+
+  private async saveEnvSettings() {
+    this.envStatus.textContent = 'Saving & testing…';
+    this.envStatus.className = 'status';
+    try {
+      const res = await settingsIpcRenderer.invoke('save-env', {
+        env: this.envVars,
+        llm: this.llmSelect.value.trim(),
+        llms: this.llms
+      });
+      settingsIpcRenderer.emit('env-saved', null, res.ok, res.ok ? '✅ Saved' : '❌ ' + (res.msg || 'Error'));
+    } catch (err) {
+      settingsIpcRenderer.emit('env-saved', null, false, (err as Error).message);
     }
   }
 }

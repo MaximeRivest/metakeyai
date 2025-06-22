@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clipboard Pastille</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: transparent;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pastille {
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(10px);
+            border-radius: 30px;
+            padding: 14px 24px;
+            color: white;
+            font-size: 15px;
+            font-weight: 500;
+            white-space: nowrap;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            max-width: 480px;
+            transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+            min-height: 40px;
+            -webkit-app-region: drag;
+            cursor: move;
+            position: relative;
+        }
+
+        .pastille:hover:not(.expanded) {
+            background: rgba(0, 0, 0, 0.95);
+            transform: scale(1.02);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .pastille:hover:not(.expanded) .settings-btn {
+            opacity: 1;
+        }
+
+        .settings-btn {
+            width: 20px;
+            height: 20px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            opacity: 0;
+            font-size: 12px;
+            -webkit-app-region: no-drag;
+            flex-shrink: 0;
+        }
+
+        .settings-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            transform: rotate(90deg);
+        }
+
+        .pastille.expanded .settings-btn {
+            display: none;
+        }
+
+        .pastille.expanded {
+            width: calc(100vw - 48px);
+            height: calc(100vh - 48px);
+            max-width: none;
+            border-radius: 16px;
+            padding: 0;
+            flex-direction: column;
+            white-space: normal;
+            background: rgba(15, 15, 15, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+        }
+
+        .indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4CAF50;
+            flex-shrink: 0;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+            -webkit-app-region: no-drag;
+            transition: all 0.3s ease;
+        }
+
+        .pastille.expanded .indicator {
+            display: none;
+        }
+
+        .content {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+            -webkit-app-region: no-drag;
+            transition: all 0.3s ease;
+        }
+
+        .pastille.expanded .content {
+            display: none;
+        }
+
+        .counter {
+            font-size: 11px;
+            opacity: 0.7;
+            flex-shrink: 0;
+            -webkit-app-region: no-drag;
+            transition: all 0.3s ease;
+        }
+
+        .pastille.expanded .counter {
+            display: none;
+        }
+
+        .empty {
+            opacity: 0.5;
+            font-style: italic;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.8) translateY(10px);
+        }
+        
+        .pastille:not(.hidden) {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+
+        .wave {
+            height: 40px;
+            flex: 1;
+            max-width: 300px;
+            -webkit-app-region: no-drag;
+            transition: all 0.3s ease;
+        }
+
+        .wave.hidden {
+            width: 0 !important;
+            flex: 0 0 0 !important;
+        }
+
+        .pastille.expanded .wave {
+            display: none;
+        }
+
+        /* Editor Container */
+        .editor-container {
+            display: none;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            -webkit-app-region: no-drag;
+        }
+
+        .pastille.expanded .editor-container {
+            display: flex;
+        }
+
+        /* Header Bar */
+        .editor-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.02);
+            -webkit-app-region: drag;
+            cursor: move;
+        }
+
+        .editor-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .editor-actions {
+            display: flex;
+            gap: 8px;
+            -webkit-app-region: no-drag;
+        }
+
+        .editor-btn {
+            padding: 6px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .editor-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .editor-btn.primary {
+            background: #4CAF50;
+            border-color: #4CAF50;
+        }
+
+        .editor-btn.primary:hover {
+            background: #45a049;
+        }
+
+        /* Control Bar - Preserves pill functionality */
+        .editor-controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.3);
+            -webkit-app-region: no-drag;
+            gap: 16px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .control-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4CAF50;
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+            transition: all 0.3s ease;
+        }
+
+        .control-indicator.recording {
+            background: #f44336;
+            box-shadow: 0 0 8px rgba(244, 67, 54, 0.6);
+            animation: pulse 1s infinite;
+        }
+
+        .control-indicator.processing {
+            background: #ff9800;
+            box-shadow: 0 0 8px rgba(255, 152, 0, 0.6);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .control-waveform {
+            height: 30px;
+            width: 120px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .control-waveform.hidden {
+            display: none;
+        }
+
+        .clipboard-nav {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .nav-btn {
+            width: 20px;
+            height: 20px;
+            border: none;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            font-size: 10px;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .control-shortcuts {
+            display: flex;
+            gap: 12px;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .shortcut-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .shortcut-key {
+            padding: 2px 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.1);
+            font-family: monospace;
+            font-size: 9px;
+        }
+
+        /* Editor Content */
+        .editor-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .editor {
+            flex: 1;
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: white;
+            resize: none;
+            outline: none;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            padding: 24px;
+            -webkit-app-region: no-drag;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .editor::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        /* Editor Footer */
+        .editor-footer {
+            padding: 12px 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.02);
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .editor-stats {
+            display: flex;
+            gap: 16px;
+        }
+
+        .editor-shortcuts {
+            font-size: 11px;
+            opacity: 0.5;
+        }
+
+        .backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            backdrop-filter: blur(8px) brightness(0.3);
+            background: rgba(0, 0, 0, 0.4);
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .pastille.expanded + .backdrop,
+        .backdrop.show {
+            opacity: 1;
+        }
+
+        .backdrop.hidden { 
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Animations */
+        @keyframes expandPastille {
+            from {
+                border-radius: 30px;
+                transform: scale(1);
+            }
+            to {
+                border-radius: 16px;
+                transform: scale(1);
+            }
+        }
+
+        @keyframes collapsePastille {
+            from {
+                border-radius: 16px;
+            }
+            to {
+                border-radius: 30px;
+            }
+        }
+
+        .pastille.expanding {
+            animation: expandPastille 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+
+        .pastille.collapsing {
+            animation: collapsePastille 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+    </style>
+</head>
+<body>
+    <div id="backdrop" class="backdrop hidden"></div>
+    <div id="pastille" class="pastille hidden">
+        <!-- Collapsed State -->
+        <div class="indicator"></div>
+        <canvas id="waveform" class="wave hidden"></canvas>
+        <div id="content" class="content">No clipboard content</div>
+        <div id="counter" class="counter">0/0</div>
+        <button class="settings-btn" id="settings-btn" title="Settings">⚙️</button>
+
+        <!-- Expanded State -->
+        <div class="editor-container">
+            <div class="editor-header">
+                <div class="editor-title">
+                    <span>✏️</span>
+                    <span>Clipboard Editor</span>
+                </div>
+                <div class="editor-actions">
+                    <button class="editor-btn" id="cancel-btn">Cancel</button>
+                    <button class="editor-btn primary" id="save-btn">Save</button>
+                </div>
+            </div>
+            
+            <!-- Control Bar - Preserves all pill functionality -->
+            <div class="editor-controls">
+                <div class="control-group">
+                    <div class="control-indicator" id="control-indicator"></div>
+                    <canvas class="control-waveform hidden" id="control-waveform"></canvas>
+                    <div id="control-status">Ready</div>
+                </div>
+                
+                <div class="clipboard-nav">
+                    <button class="nav-btn" id="nav-prev" title="Previous clipboard item (Ctrl+Alt+Left)">‹</button>
+                    <span id="nav-counter">1/1</span>
+                    <button class="nav-btn" id="nav-next" title="Next clipboard item (Ctrl+Alt+Right)">›</button>
+                </div>
+                
+                <div class="control-shortcuts">
+                    <div class="shortcut-item">
+                        <span class="shortcut-key">Ctrl+Alt+W</span>
+                        <span>Record</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="shortcut-key">Ctrl+Alt+Q</span>
+                        <span>AI Edit</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="shortcut-key">Ctrl+Alt+E</span>
+                        <span>Speak</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <button class="nav-btn" id="spell-book-btn" title="Open Python Spell Book" style="width: 24px; height: 20px; margin-left: 8px;">🧙‍♂️</button>
+                        <span>Spells</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="editor-content">
+                <textarea id="editor" class="editor" placeholder="Start typing to edit your clipboard content..."></textarea>
+            </div>
+            <div class="editor-footer">
+                <div class="editor-stats">
+                    <span id="char-count">0 characters</span>
+                    <span id="word-count">0 words</span>
+                    <span id="line-count">0 lines</span>
+                </div>
+                <div class="editor-shortcuts">
+                    Double-click to collapse • All shortcuts work while editing
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="pastille.js"></script>
+</body>
+</html> 

@@ -10,81 +10,46 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-
+        
     runs-on: ${{ matrix.os }}
-
+    
     steps:
-      - name: Check out Git repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install uv (Linux/macOS)
+      - name: Install UV (Linux/macOS)
+        if: runner.os != 'Windows'
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
-        if: runner.os != 'Windows'
 
-      - name: Add uv to PATH (Linux/macOS)
-        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        if: runner.os != 'Windows'
-        
-      - name: Install uv (Windows)
-        run: powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+      - name: Install UV (Windows)
         if: runner.os == 'Windows'
-
-      - name: Add uv to PATH (Windows)
-        run: echo "$env:USERPROFILE\\.cargo\\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
-        if: runner.os == 'Windows'
-        shell: pwsh
-
-      - name: Set up sox (Linux)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y sox
-          mkdir -p resources/binaries/linux
-          cp /usr/bin/sox resources/binaries/linux/sox
-          chmod +x resources/binaries/linux/sox
-        if: runner.os == 'Linux'
+          powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+          echo "$env:USERPROFILE\.cargo\bin" >> $env:GITHUB_PATH
 
-      - name: Set up sox (macOS)
-        run: |
-          brew install sox
-          mkdir -p resources/binaries/macos
-          cp /opt/homebrew/bin/sox resources/binaries/macos/sox || cp /usr/local/bin/sox resources/binaries/macos/sox
-          chmod +x resources/binaries/macos/sox
-        if: runner.os == 'macOS'
+      - name: Verify UV installation
+        run: uv --version
 
-      - name: Set up sox (Windows)
-        run: |
-          mkdir -p resources/binaries/windows
-          # Use chocolatey to install sox, which is more reliable than manual download
-          choco install sox.portable -y
-          # Copy the sox executable from chocolatey installation
-          Copy-Item "C:\ProgramData\chocolatey\lib\sox.portable\tools\sox.exe" "resources/binaries/windows/sox.exe"
-        if: runner.os == 'Windows'
-        shell: pwsh
-        
-      - name: Install npm dependencies
-        run: npm install
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Build and package application
+      - name: Setup Python environment
+        run: npm run setup:python
+
+      - name: Build Python components
+        run: npm run build:python
+
+      - name: Build Electron app
         run: npm run make
-        
-      - name: Upload Artifacts
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: metakeyai-${{ matrix.os }}
-          path: |
-            out/make/**/*.AppImage
-            out/make/**/*.deb
-            out/make/**/*.exe
-            out/make/**/*.zip
-            out/make/**/*.dmg 
+          name: metakeyai-${{ runner.os }}
+          path: out/make/**/* 

@@ -7,6 +7,11 @@ const fs = require('fs');
 async function buildPythonServer() {
   console.log('🚀 Building Python server with UV...');
 
+  if (process.platform === 'win32') {
+    console.log('🪟 Windows build: skipping UV sync (already shipping embedded Python).');
+    return;
+  }
+
   const appPath = process.cwd();
   
   // Check if UV is available

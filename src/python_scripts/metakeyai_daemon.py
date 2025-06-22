@@ -19,10 +19,17 @@ import os
 import io
 import tempfile
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
+
+# ---------------------------------------------------------------------------
+# Constants and Globals
+# ---------------------------------------------------------------------------
+PORT = int(os.getenv("METAKEYAI_PORT", "5000"))
+SPELL_CACHE: Dict[str, types.ModuleType] = {}
 
 # ---------------------------------------------------------------------------
 # Helpers (logging to stderr)
@@ -63,14 +70,21 @@ def load_spell_module(script_file: str) -> types.ModuleType:
     # Provide dspy and default LM to spell namespace automatically
     if dspy:
         try:
+            # Only configure if the LM is not already set
             if getattr(dspy.settings, 'lm', None) is None:
-                model_str = os.getenv('METAKEYAI_LLM') or 'openai/gpt-3.5-turbo'
-                try:
-                    dspy.settings.lm = dspy.LM(model_str)
-                except Exception as _e:
-                    log('Failed to create default LM:', _e)
+                model_str = os.getenv('METAKEYAI_LLM')
+                api_key = os.getenv('OPENAI_API_KEY')
+
+                # Also check for other common provider keys if needed in future
+                # e.g., anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
+
+                if model_str and api_key:
+                    log(f"Configuring default LLM for spells: {model_str}")
+                    dspy.settings.configure(lm=dspy.LM(model_str))
+                else:
+                    log("⚠️ Skipping LLM configuration for spells (model or key not set).")
         except Exception as _e:
-            log('failed to prepare default LM for spell:', _e)
+            log(f"Failed to configure dspy LLM for spell, AI features may be limited: {_e}")
         module.__dict__['dspy'] = dspy
 
     sys.modules[module_name] = module
@@ -130,20 +144,30 @@ def _discover_spells():
 # FastAPI App and Endpoints
 # ---------------------------------------------------------------------------
 
-app = FastAPI()
-
-@app.on_event("startup")
-async def startup_event():
-    port = int(os.getenv("METAKEYAI_PORT", "5000"))
+# App setup
+# Use a lifespan context manager for startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Server startup logic."""
     log("🚀 FastAPI server starting up...")
-    _configure_llm_from_env()
-    _discover_spells()
-    log("✅ Spells discovered and loaded.")
-    log(f"http://127.0.0.1:{port}/docs for API docs")
+    try:
+        _configure_llm_from_env()
+        _discover_spells()
+        log("✅ Spells discovered and loaded.")
+        log(f"http://127.0.0.1:{PORT}/docs for API docs")
+    except Exception as e:
+        log("❌ Error during startup:", e)
+    
+    yield
+    
+    # Code below runs on shutdown
+    log("🔌 FastAPI server shutting down.")
+
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "1.0.0", "dspy_available": bool(dspy) }
 
 @app.get("/ping")
 def ping():
@@ -278,7 +302,5 @@ def quick_edit(payload: QuickEditRequest):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    # Get port from environment variable, default to 5000
-    port = int(os.getenv("METAKEYAI_PORT", "5000"))
-    log(f"🚀 Starting FastAPI server on port {port}")
-    uvicorn.run(app, host="127.0.0.1", port=port) 
+    log(f"🚀 Starting FastAPI server on port {PORT}")
+    uvicorn.run(app, host="127.0.0.1", port=PORT) 

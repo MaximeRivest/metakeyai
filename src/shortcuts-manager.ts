@@ -14,16 +14,28 @@ export interface ShortcutConfig {
 }
 
 export class ShortcutsManager {
+  private static instance: ShortcutsManager | null = null;
   private shortcuts: Map<string, ShortcutConfig> = new Map();
   private configPath: string;
   private isInitialized = false;
 
-  constructor() {
+  private constructor() {
     this.configPath = path.join(__dirname, 'shortcuts_config.json');
     this.setupIpcHandlers();
   }
 
+  public static getInstance(): ShortcutsManager {
+    if (!ShortcutsManager.instance) {
+      ShortcutsManager.instance = new ShortcutsManager();
+    }
+    return ShortcutsManager.instance;
+  }
+
   async initialize(handlers: Record<string, () => void | Promise<void>>): Promise<void> {
+    if (this.isInitialized) {
+      console.log('⌨️ Shortcuts Manager already initialized, skipping.');
+      return;
+    }
     console.log('⌨️ Initializing Shortcuts Manager...');
 
     // Define default shortcuts
@@ -236,8 +248,12 @@ export class ShortcutsManager {
       }
       
       try {
-        const success = globalShortcut.register(shortcut.currentKey, shortcut.handler);
-        if (success) {
+        // Try registering the shortcut.  `register` returns `false` on failure, but some
+        // window managers return `undefined` even when the key IS registered. Treat anything
+        // other than explicit `false` as success.
+        const registrationResult = globalShortcut.register(shortcut.currentKey, shortcut.handler);
+
+        if (registrationResult !== false) {
           successCount++;
           console.log(`⌨️ ${shortcut.name} (${shortcut.currentKey}): ✅`);
         } else {
@@ -287,10 +303,10 @@ export class ShortcutsManager {
         globalShortcut.unregister(shortcut.currentKey);
       }
       
-      // Try to register the new key
-      const success = globalShortcut.register(newKey, shortcut.handler);
-      
-      if (success) {
+      // Try to register the new key; treat explicit `false` as failure, anything else success
+      const regResult = globalShortcut.register(newKey, shortcut.handler);
+
+      if (regResult !== false) {
         shortcut.currentKey = newKey;
         await this.saveShortcuts();
         console.log(`✅ Updated shortcut ${shortcut.name}: ${newKey}`);

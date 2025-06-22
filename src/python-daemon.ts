@@ -123,12 +123,15 @@ export class PythonDaemon extends EventEmitter {
         }
       });
 
-      this.process.stdout?.on('data', (data) => {
-        console.log('🐍 FastAPI server stdout:', data.toString());
+      this.process.stdout?.on('data', (data: Buffer) => {
+        const message = data.toString().trim();
+        console.log('🐍 FastAPI server stdout:', message);
       });
 
-      this.process.stderr?.on('data', (data) => {
-        console.error('🐍 FastAPI server stderr:', data.toString());
+      this.process.stderr?.on('data', (data: Buffer) => {
+        const message = data.toString().trim();
+        // Use console.log to prevent prefixing info messages from stderr with 'ERROR'
+        console.log('🐍 FastAPI server stderr:', message);
       });
 
       this.process.on('exit', (code, signal) => {
@@ -173,7 +176,7 @@ export class PythonDaemon extends EventEmitter {
       console.log('🔧 Running in development mode with UV');
       return {
         command: this.uvPath!,
-        args: ['run', 'python', 'src/python_scripts/metakeyai_daemon.py']
+        args: ['run', '--active', 'python', 'src/python_scripts/metakeyai_daemon.py']
       };
     } else {
       // Production mode: create writable project in user data directory

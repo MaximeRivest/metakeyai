@@ -1075,9 +1075,8 @@ async function initializeApp() {
     console.log('✅ OpenAI API key found in config');
   }
 
-  // Initialize shortcuts manager
-  console.log('⌨️ Initializing shortcuts manager...');
-  shortcutsManager = new ShortcutsManager();
+  // Initialize shortcuts manager (logging handled inside ShortcutsManager)
+  shortcutsManager = ShortcutsManager.getInstance();
   
   // Define all shortcut handlers
   const shortcutHandlers = {

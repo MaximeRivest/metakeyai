@@ -750,81 +750,294 @@ class SettingsRenderer {
   }
 
   private async runLocalTest(deviceId: string) {
+    console.log('🎙️ === MICROPHONE TEST DEBUG START ===');
+    console.log('🎙️ Testing device ID:', deviceId);
+    
     const constraints: MediaStreamConstraints = {
         audio: (deviceId && deviceId !== 'auto') ? { deviceId } : true,
         video: false
     };
+    console.log('🎙️ Media constraints:', constraints);
 
     let stream: MediaStream | null = null;
 
     try {
+        console.log('🎙️ Step 1: Requesting getUserMedia...');
         stream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('🎙️ Step 1 SUCCESS: Got MediaStream:', stream);
+        console.log('🎙️ Stream tracks:', stream.getTracks().map(track => ({
+            kind: track.kind,
+            label: track.label,
+            enabled: track.enabled,
+            readyState: track.readyState,
+            muted: track.muted
+        })));
         
+        // Check if we have an active audio track
+        const audioTracks = stream.getAudioTracks();
+        if (audioTracks.length === 0) {
+            throw new Error('No audio tracks found in the stream');
+        }
+        console.log('🎙️ Audio tracks:', audioTracks.map(track => ({
+            label: track.label,
+            enabled: track.enabled,
+            readyState: track.readyState,
+            muted: track.muted,
+            settings: track.getSettings()
+        })));
+        
+        console.log('🎙️ Step 2: Testing MediaRecorder support...');
         const mimeTypes = [ 'audio/webm;codecs=opus', 'audio/webm', 'audio/mp4' ];
         const supportedMimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
         if (!supportedMimeType) {
             throw new Error('No supported audio MIME type for test recording.');
         }
+        console.log('🎙️ Step 2 SUCCESS: Using MIME type:', supportedMimeType);
 
+        console.log('🎙️ Step 3: Creating MediaRecorder...');
         const mediaRecorder = new MediaRecorder(stream, { mimeType: supportedMimeType });
+        console.log('🎙️ Step 3 SUCCESS: MediaRecorder state:', mediaRecorder.state);
+        
         const chunks: BlobPart[] = [];
         let recorderError: Error | null = null;
+        let dataEventCount = 0;
+        let totalDataSize = 0;
 
         mediaRecorder.onerror = (e) => {
-            console.error('MediaRecorder error during test:', (e as any).error);
+            console.error('🎙️ MediaRecorder ERROR:', (e as any).error);
             recorderError = (e as any).error || new Error('Unknown MediaRecorder error');
         };
         
         mediaRecorder.ondataavailable = e => {
+            dataEventCount++;
+            console.log(`🎙️ Data available event #${dataEventCount}:`, {
+                dataSize: e.data.size,
+                dataType: e.data.type,
+                timecode: e.timecode
+            });
+            
             if (e.data.size > 0) {
                 chunks.push(e.data);
+                totalDataSize += e.data.size;
+                console.log(`🎙️ Added chunk. Total chunks: ${chunks.length}, Total size: ${totalDataSize} bytes`);
+            } else {
+                console.warn('🎙️ WARNING: Received empty data chunk');
             }
         };
 
+        mediaRecorder.onstart = () => {
+            console.log('🎙️ MediaRecorder STARTED');
+        };
+
         mediaRecorder.onstop = () => {
+            console.log('🎙️ === MEDIARECORDER STOP EVENT ===');
+            console.log('🎙️ Final stats:', {
+                chunksCount: chunks.length,
+                totalDataSize: totalDataSize,
+                dataEventCount: dataEventCount,
+                hasError: !!recorderError
+            });
+            
             // Stop all stream tracks to turn off the microphone light
-            stream?.getTracks().forEach(track => track.stop());
+            stream?.getTracks().forEach(track => {
+                console.log(`🎙️ Stopping track: ${track.label} (${track.kind})`);
+                track.stop();
+            });
+            
             this.testMicBtn.textContent = '🎙️ Test Recording';
             this.testMicBtn.disabled = false;
 
             if (recorderError) {
+                console.error('🎙️ FAILED: Recorder error:', recorderError.message);
                 this.showMicrophoneTestResult({ success: false, error: recorderError.message });
                 return;
             }
             
             if (chunks.length === 0) {
+                console.error('🎙️ FAILED: No chunks recorded');
                 this.showMicrophoneTestResult({ success: false, error: "Recording produced no data. The microphone may be muted or unavailable." });
                 return;
             }
 
+            if (totalDataSize === 0) {
+                console.error('🎙️ FAILED: All chunks are empty');
+                this.showMicrophoneTestResult({ success: false, error: "Recording chunks are empty. No audio data captured." });
+                return;
+            }
+
+            console.log('🎙️ Step 4: Creating Blob from chunks...');
             const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
+            console.log('🎙️ Step 4 SUCCESS: Blob created:', {
+                size: blob.size,
+                type: blob.type,
+                expectedSize: totalDataSize
+            });
+
+            if (blob.size === 0) {
+                console.error('🎙️ FAILED: Blob has zero size');
+                this.showMicrophoneTestResult({ success: false, error: "Created audio blob is empty." });
+                return;
+            }
+
+            console.log('🎙️ Step 5: Creating Object URL...');
             const audioUrl = URL.createObjectURL(blob);
-            
-            this.showMicrophoneTestResult({
-                success: true,
-                duration: 3000,
-                method: 'web-audio',
-                fileSize: blob.size,
-                audioUrl: audioUrl
+            console.log('🎙️ Step 5 SUCCESS: Object URL created:', audioUrl);
+
+            // Try to validate the blob by reading it
+            this.debugAudioBlob(blob, audioUrl).then(blobInfo => {
+                console.log('🎙️ Step 6: Blob validation SUCCESS:', blobInfo);
+                
+                this.showMicrophoneTestResult({
+                    success: true,
+                    duration: 3000,
+                    method: 'web-audio',
+                    fileSize: blob.size,
+                    audioUrl: audioUrl,
+                    mimeType: blob.type,
+                    blobInfo: blobInfo
+                });
+            }).catch(validationError => {
+                console.error('🎙️ Blob validation failed, trying data URL fallback:', validationError);
+                
+                // Try creating a data URL as fallback
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const dataUrl = reader.result as string;
+                    console.log('🎙️ Step 6 FALLBACK: Data URL created, length:', dataUrl.length);
+                    
+                    // Test the data URL
+                    this.debugAudioBlob(blob, dataUrl).then(dataUrlInfo => {
+                        console.log('🎙️ Step 6 FALLBACK SUCCESS: Data URL validation:', dataUrlInfo);
+                        this.showMicrophoneTestResult({
+                            success: true,
+                            duration: 3000,
+                            method: 'web-audio',
+                            fileSize: blob.size,
+                            audioUrl: dataUrl,
+                            mimeType: blob.type,
+                            blobInfo: dataUrlInfo,
+                            urlType: 'data-url'
+                        });
+                    }).catch(dataUrlError => {
+                        console.error('🎙️ Data URL validation also failed:', dataUrlError);
+                        this.showMicrophoneTestResult({
+                            success: true,
+                            duration: 3000,
+                            method: 'web-audio',
+                            fileSize: blob.size,
+                            audioUrl: audioUrl, // Use original blob URL anyway
+                            mimeType: blob.type,
+                            warning: `Both blob URL and data URL failed validation. Blob: ${validationError.message}, Data: ${dataUrlError.message}`,
+                            urlType: 'blob-url-fallback'
+                        });
+                    });
+                };
+                reader.onerror = () => {
+                    console.error('🎙️ FileReader failed');
+                    this.showMicrophoneTestResult({
+                        success: true,
+                        duration: 3000,
+                        method: 'web-audio',
+                        fileSize: blob.size,
+                        audioUrl: audioUrl,
+                        mimeType: blob.type,
+                        warning: `Blob validation failed: ${validationError.message}. FileReader also failed.`,
+                        urlType: 'blob-url-fallback'
+                    });
+                };
+                reader.readAsDataURL(blob);
             });
         };
 
-        mediaRecorder.start(100); // 100ms timeslice
+        console.log('🎙️ Step 7: Starting recording...');
+        mediaRecorder.start(100); // 100ms timeslice for more frequent data events
+        console.log('🎙️ Step 7 SUCCESS: Recording started, state:', mediaRecorder.state);
         
         setTimeout(() => {
+            console.log('🎙️ Step 8: 3 seconds elapsed, stopping recording...');
+            console.log('🎙️ MediaRecorder state before stop:', mediaRecorder.state);
             if (mediaRecorder.state === 'recording') {
                 mediaRecorder.stop();
+                console.log('🎙️ Step 8 SUCCESS: Stop called, state:', mediaRecorder.state);
+            } else {
+                console.warn('🎙️ WARNING: MediaRecorder not in recording state:', mediaRecorder.state);
             }
         }, 3000);
 
     } catch (error) {
+        console.error('🎙️ === MICROPHONE TEST ERROR ===');
+        console.error('🎙️ Error details:', error);
+        
         if (stream) {
+            console.log('🎙️ Cleaning up stream...');
             stream.getTracks().forEach(track => track.stop());
         }
         this.showMicrophoneTestResult({ success: false, error: error.message });
         this.testMicBtn.textContent = '🎙️ Test Recording';
         this.testMicBtn.disabled = false;
     }
+    
+    console.log('🎙️ === MICROPHONE TEST DEBUG END ===');
+  }
+
+  private async debugAudioBlob(blob: Blob, audioUrl: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      console.log('🔍 === BLOB VALIDATION START ===');
+      
+      // Create a temporary audio element to test the blob
+      const tempAudio = document.createElement('audio');
+      tempAudio.style.display = 'none';
+      document.body.appendChild(tempAudio);
+      
+      let resolved = false;
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          document.body.removeChild(tempAudio);
+          reject(new Error('Blob validation timeout'));
+        }
+      }, 5000);
+
+      tempAudio.onloadedmetadata = () => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timeout);
+        
+        const info = {
+          duration: tempAudio.duration,
+          networkState: tempAudio.networkState,
+          readyState: tempAudio.readyState,
+          canPlay: tempAudio.canPlayType(blob.type),
+          paused: tempAudio.paused,
+          ended: tempAudio.ended,
+          seeking: tempAudio.seeking,
+          buffered: tempAudio.buffered.length,
+          validDuration: !isNaN(tempAudio.duration) && tempAudio.duration > 0
+        };
+        
+        console.log('🔍 Audio metadata loaded:', info);
+        document.body.removeChild(tempAudio);
+        resolve(info);
+      };
+
+      tempAudio.onerror = (e) => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(timeout);
+        
+        console.error('🔍 Audio loading error:', e);
+        document.body.removeChild(tempAudio);
+        reject(new Error(`Audio loading failed: ${tempAudio.error?.message || 'Unknown error'}`));
+      };
+
+      tempAudio.oncanplay = () => {
+        console.log('🔍 Audio can play event fired');
+      };
+
+      console.log('🔍 Setting audio src to blob URL...');
+      tempAudio.src = audioUrl;
+      tempAudio.load();
+    });
   }
 
   private onMicrophoneDeviceChange() {
@@ -902,7 +1115,8 @@ class SettingsRenderer {
   }
 
   private showMicrophoneTestResult(result: any) {
-    console.log('📊 Microphone test result:', result);
+    console.log('📊 === SHOWING MICROPHONE TEST RESULT ===');
+    console.log('📊 Result data:', result);
     
     this.micTestResult.style.display = 'block';
 
@@ -914,14 +1128,53 @@ class SettingsRenderer {
       this.micTestStatus.textContent = '✅ Test successful! Your microphone is working correctly.';
       
       const infoText = document.createElement('div');
-      infoText.textContent = `Recorded ${result.duration}ms using ${result.method}. File size: ${result.fileSize || 'unknown'} bytes.`;
+      infoText.innerHTML = `
+        <strong>Recording Details:</strong><br>
+        • Duration: ${result.duration}ms using ${result.method}<br>
+        • File size: ${result.fileSize || 'unknown'} bytes<br>
+        • MIME type: ${result.mimeType || 'unknown'}<br>
+        • URL type: ${result.urlType || 'blob-url'}<br>
+        ${result.blobInfo ? `• Audio duration: ${result.blobInfo.validDuration ? result.blobInfo.duration.toFixed(2) + 's' : 'invalid'}<br>` : ''}
+        ${result.blobInfo ? `• Can play type: ${result.blobInfo.canPlay}<br>` : ''}
+        ${result.warning ? `<br><span style="color: #ff9800;">⚠️ Warning: ${result.warning}</span>` : ''}
+      `;
 
+      console.log('📊 Creating audio player element...');
       const audioPlayer = document.createElement('audio');
       audioPlayer.src = result.audioUrl;
       audioPlayer.controls = true;
-      audioPlayer.autoplay = true; // For immediate feedback
+      audioPlayer.preload = 'metadata';
       audioPlayer.style.marginTop = '8px';
       audioPlayer.style.width = '100%';
+      
+      // Add debugging for the audio player
+      audioPlayer.addEventListener('loadstart', () => {
+        console.log('🔊 Audio player: loadstart event');
+      });
+      
+      audioPlayer.addEventListener('loadedmetadata', () => {
+        console.log('🔊 Audio player: loadedmetadata event', {
+          duration: audioPlayer.duration,
+          readyState: audioPlayer.readyState,
+          networkState: audioPlayer.networkState
+        });
+      });
+      
+      audioPlayer.addEventListener('loadeddata', () => {
+        console.log('🔊 Audio player: loadeddata event');
+      });
+      
+      audioPlayer.addEventListener('canplay', () => {
+        console.log('🔊 Audio player: canplay event');
+      });
+      
+      audioPlayer.addEventListener('error', (e) => {
+        console.error('🔊 Audio player: error event', e, audioPlayer.error);
+      });
+
+      audioPlayer.addEventListener('durationchange', () => {
+        console.log('🔊 Audio player: duration changed to', audioPlayer.duration);
+      });
       
       this.micTestInfo.appendChild(infoText);
       this.micTestInfo.appendChild(audioPlayer);

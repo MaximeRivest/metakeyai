@@ -37,6 +37,7 @@ export class ClipboardHistory extends EventEmitter {
     this.checkInterval = setInterval(() => {
       // Skip monitoring during edit mode to prevent draft spam
       if (this.isEditModeActive) {
+        console.log('🚫 Clipboard monitoring paused during edit mode');
         return;
       }
       
@@ -159,7 +160,7 @@ export class ClipboardHistory extends EventEmitter {
   }
 
   // Add entry with optional replacement of specific entry (for edit mode)
-  public addEntryWithReplacement(text: string, replaceEntryId?: string): ClipboardEntry {
+  public addEntryWithReplacement(text: string, replaceEntryId?: string | null): ClipboardEntry {
     if (!text.trim()) {
       throw new Error('Cannot add empty clipboard entry');
     }

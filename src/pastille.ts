@@ -60,6 +60,7 @@ class PastilleRenderer {
     this.editor = document.getElementById('editor') as HTMLTextAreaElement;
     this.backdrop = document.getElementById('backdrop')!;
     this.saveBtn = document.getElementById('save-btn') as HTMLButtonElement;
+    this.overwriteBtn = document.getElementById('overwrite-btn') as HTMLButtonElement;
     this.cancelBtn = document.getElementById('cancel-btn') as HTMLButtonElement;
     this.charCount = document.getElementById('char-count')!;
     this.wordCount = document.getElementById('word-count')!;
@@ -172,6 +173,11 @@ class PastilleRenderer {
       this.saveAndCollapse();
     });
 
+    // Overwrite button
+    this.overwriteBtn.addEventListener('click', () => {
+      this.overwriteAndCollapse();
+    });
+
     // Cancel button
     this.cancelBtn.addEventListener('click', () => {
       this.cancelAndCollapse();
@@ -182,6 +188,9 @@ class PastilleRenderer {
       if (e.key === 'Escape') {
         e.preventDefault();
         this.cancelAndCollapse();
+      } else if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        this.saveAndCollapse();
       } else if (e.ctrlKey && e.key === 'Enter') {
         e.preventDefault();
         this.saveAndCollapse();

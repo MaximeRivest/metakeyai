@@ -1528,7 +1528,7 @@ let editSessionData: {
 function setupIpcListeners(): void {
   // Add IPC listener for edit-mode-start
   ipcMain.on('edit-mode-start', (event, { entryIndex, entryText }) => {
-    console.log('📝 Edit mode started for entry:', entryIndex);
+    console.log('📝 🚀 EDIT MODE STARTED for entry:', entryIndex, 'Text preview:', entryText.substring(0, 50) + '...');
     editSessionData = {
       originalIndex: entryIndex,
       originalText: entryText,
@@ -1536,6 +1536,9 @@ function setupIpcListeners(): void {
     };
     if (clipboardHistory) {
       clipboardHistory.setEditModeActive(true);
+      console.log('📝 ✅ Edit mode activated in clipboard history');
+    } else {
+      console.error('📝 ❌ No clipboard history instance available!');
     }
   });
 
@@ -1567,6 +1570,7 @@ function setupIpcListeners(): void {
   
   // Add IPC listener for update-clipboard-draft (auto-save - just updates system clipboard)
   ipcMain.on('update-clipboard-draft', (event, text) => {
+    console.log('📝 Draft update received - should NOT trigger history. Edit mode active?', editSessionData?.isActive);
     // Only update system clipboard silently, no history updates
     clipboard.writeText(text);
     // Update last known text to prevent monitoring pickup

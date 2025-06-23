@@ -1,6 +1,6 @@
 const { ipcRenderer: settingsIpcRenderer } = require('electron');
 
-interface Setttings {
+interface Settings {
   OPENAI_API_KEY: string;
   WHISPER_MODEL: string;
   TTS_VOICE: string;

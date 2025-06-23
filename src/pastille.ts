@@ -44,6 +44,11 @@ class PastilleRenderer {
   private currentIndex: number = 0;
   private totalCount: number = 0;
 
+  // Web Audio Recording state
+  private mediaRecorder: MediaRecorder | null = null;
+  private audioStream: MediaStream | null = null;
+  private audioChunks: Blob[] = [];
+
   constructor() {
     this.pastilleElement = document.getElementById('pastille')!;
     this.contentElement = document.getElementById('content')!;
@@ -94,6 +99,7 @@ class PastilleRenderer {
     this.setupEventListeners();
     this.setupEditorEvents();
     this.setupControlBarEvents();
+    this.setupRecordingEvents();
   }
 
   private setupEventListeners() {
@@ -195,6 +201,109 @@ class PastilleRenderer {
       e.preventDefault();
       e.stopPropagation();
       pastilleIpcRenderer.send('open-spell-book');
+    });
+  }
+
+  private setupRecordingEvents() {
+    pastilleIpcRenderer.on('start-pastille-recording', async (event: any, options: { deviceId: string }) => {
+      console.log('🎤 Pastille received start-recording', options);
+      if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+        console.warn('⚠️ Recording is already in progress.');
+        return;
+      }
+
+      try {
+        const constraints: MediaStreamConstraints = {
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: 16000,
+            channelCount: 1,
+          },
+          video: false,
+        };
+
+        if (options.deviceId && options.deviceId !== 'default' && options.deviceId !== 'auto') {
+          (constraints.audio as MediaTrackConstraints).deviceId = { exact: options.deviceId };
+        }
+
+        this.audioStream = await navigator.mediaDevices.getUserMedia(constraints);
+        pastilleIpcRenderer.send('pastille-audio-started');
+        console.log('✅ Got microphone stream');
+
+        const mimeTypes = [
+          'audio/webm;codecs=opus',
+          'audio/webm',
+          'audio/mp4',
+        ];
+        const supportedMimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
+        if (!supportedMimeType) {
+          throw new Error('No supported audio MIME type found for MediaRecorder.');
+        }
+
+        this.mediaRecorder = new MediaRecorder(this.audioStream, { mimeType: supportedMimeType });
+        this.audioChunks = [];
+
+        this.mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            this.audioChunks.push(event.data);
+          }
+        };
+
+        this.mediaRecorder.onstop = async () => {
+          console.log('🎤 MediaRecorder stopped.');
+          const audioBlob = new Blob(this.audioChunks, { type: supportedMimeType });
+          const arrayBuffer = await audioBlob.arrayBuffer();
+
+          pastilleIpcRenderer.send('pastille-audio-finished', {
+            buffer: arrayBuffer,
+            mimeType: supportedMimeType
+          });
+
+          this.audioChunks = [];
+          if (this.audioStream) {
+            this.audioStream.getTracks().forEach(track => track.stop());
+            this.audioStream = null;
+          }
+        };
+        
+        this.mediaRecorder.onerror = (event) => {
+          const err = (event as any).error;
+          console.error('❌ MediaRecorder error:', err);
+          let msg = 'Unknown MediaRecorder error';
+          if (err) {
+            msg = err.message ? `${err.name}: ${err.message}` : JSON.stringify(err);
+          }
+          pastilleIpcRenderer.send('pastille-audio-error', msg);
+        };
+
+        this.mediaRecorder.start(100); // Trigger ondataavailable every 100ms
+        console.log('🎤 MediaRecorder started');
+
+      } catch (error) {
+        console.error('❌ Error starting recording in pastille:', error);
+        let errorMessage = 'An unknown recording error occurred.';
+        if (error instanceof Error) {
+            errorMessage = `${error.name}: ${error.message}`;
+        } else if (typeof error === 'string') {
+            errorMessage = error;
+        } else {
+            try {
+                errorMessage = JSON.stringify(error);
+            } catch {
+                errorMessage = 'Unstringifiable error object caught.';
+            }
+        }
+        pastilleIpcRenderer.send('pastille-audio-error', errorMessage);
+      }
+    });
+
+    pastilleIpcRenderer.on('stop-pastille-recording', () => {
+      console.log('🛑 Pastille received stop-recording');
+      if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+        this.mediaRecorder.stop();
+      }
     });
   }
 

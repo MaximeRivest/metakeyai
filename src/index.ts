@@ -1,9 +1,9 @@
-import { app, Tray, Menu, globalShortcut, clipboard, nativeImage, BrowserWindow, screen, ipcMain, dialog, shell } from 'electron';
+import { app, Tray, Menu, globalShortcut, clipboard, nativeImage, BrowserWindow, screen, ipcMain, dialog, shell, session } from 'electron';
 import * as path from 'path';
 import { callWhisperApi, callTextToSpeechApi } from './openai-api';
 import { callDaemonQuickEdit } from './python-daemon-api';
 import { config } from './config';
-import { AudioRecorder } from './audio-recorder';
+import { WebAudioRecorder } from './audio-recorder';
 import { ClipboardHistory } from './clipboard-history';
 import { AudioPlayer } from './audio-player';
 import { PythonSpellCaster, pythonSpellCaster } from './python-spells';
@@ -29,7 +29,7 @@ declare const SPELL_BOOK_WINDOW_WEBPACK_ENTRY: string;
 declare const SPELL_BOOK_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
 let tray: Tray | null = null;
-let recorder: AudioRecorder | null = null;
+let recorder: WebAudioRecorder | null = null;
 let visualizerWindow: null = null;
 let pastilleWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
@@ -412,72 +412,69 @@ const handleVoiceRecord = async () => {
     console.log('🎙️ Starting recording...');
     
     try {
-      recorder = new AudioRecorder();
+      // Create recorder instance only if we don't have one
+      if (!recorder) {
+        console.log('🌐 Using Web Audio API for recording');
+        recorder = new WebAudioRecorder();
 
-      // Set up event handlers before starting
-      recorder.on('audio-data', (data: Buffer) => {
-        pastilleWindow?.webContents.send('audio-data', data);
-      });
+        // Set up event handlers only for new recorder instances
+        recorder.on('audio-data', (data: Buffer) => {
+          pastilleWindow?.webContents.send('audio-data', data);
+        });
 
-      recorder.on('finished', (filePath: string) => {
-        console.log('✅ Recording finished, file:', filePath);
-        processRecording(filePath);
-        recorder = null; // Reset recorder
-      });
+        recorder.on('finished', (filePath: string) => {
+          console.log('✅ Recording finished, file:', filePath);
+          processRecording(filePath);
+          // Don't reset recorder to null here - keep it for reuse
+        });
 
-      recorder.on('error', (error: any) => {
-        console.log('❌ Recording error:', error);
-        
-        let userMessage = 'Recording Error';
-        let actionButton = '';
-        
-        // Provide user-friendly error messages based on the error
-        if (error.message.includes('Malformed dshow input string') || 
-            error.message.includes('I/O error') ||
-            error.message.includes('Could not access the microphone')) {
-          userMessage = 'Microphone access failed. The device may be in use or disconnected.';
-          actionButton = '⚙️ Configure Audio Device';
-        } else if (error.message.includes('No working audio device found')) {
-          userMessage = 'No working microphone found. Please check your audio settings.';
-          actionButton = '⚙️ Open Audio Settings';
-        } else if (error.message.includes('Command failed')) {
-          userMessage = 'Audio recording software issue. Try restarting the app.';
-          actionButton = '🔄 Restart App';
-        } else {
-          userMessage = `Recording Error: ${error.message}`;
-          actionButton = '⚙️ Audio Settings';
-        }
-        
-        positionPillNearCursor();
-        pastilleWindow?.webContents.send('show-message', userMessage);
-        pastilleWindow?.show();
-        
-        // Show a more detailed dialog with action button
-        setTimeout(() => {
-          dialog.showMessageBox({
-            type: 'warning',
-            title: 'Audio Recording Issue',
-            message: userMessage,
-            detail: 'Would you like to configure your audio device settings?',
-            buttons: ['Configure Audio Settings', 'Cancel'],
-            defaultId: 0
-          }).then(result => {
-            if (result.response === 0) {
-              // Open settings window with focus on audio section
-              openSettingsWindow();
-            }
-          });
-        }, 2000);
-        
-        recorder = null; // Reset recorder
-      });
+        recorder.on('error', (error: any) => {
+          console.log('❌ Recording error:', error);
+          
+          let userMessage = 'Recording Error';
+          
+          // Provide user-friendly error messages based on the error
+          if (error.message.includes('permission denied')) {
+            userMessage = 'Microphone access denied. Please allow microphone permissions in your system settings.';
+          } else if (error.message.includes('No microphone found')) {
+            userMessage = 'No microphone found. Please connect a microphone and try again.';
+          } else if (error.message.includes('in use by another application')) {
+            userMessage = 'Your microphone is busy. Please close other apps using it.';
+          } else {
+            userMessage = `Recording Error: ${error.message}`;
+          }
+          
+          positionPillNearCursor();
+          pastilleWindow?.webContents.send('show-message', userMessage);
+          pastilleWindow?.show();
+          
+          // Show a more detailed dialog with action button
+          setTimeout(() => {
+            dialog.showMessageBox({
+              type: 'warning',
+              title: 'Audio Recording Issue',
+              message: userMessage,
+              detail: 'Would you like to open your audio settings?',
+              buttons: ['Open Audio Settings', 'Cancel'],
+              defaultId: 0
+            }).then(result => {
+              if (result.response === 0) {
+                // Open settings window with focus on audio section
+                openSettingsWindow();
+              }
+            });
+          }, 2000);
+          
+          recorder = null; // Reset recorder
+        });
+      }
 
       // Check if recording is available before attempting to start
       const isAvailable = await recorder.isRecordingAvailable();
       if (!isAvailable) {
         console.log('❌ No recording method available');
         positionPillNearCursor();
-        pastilleWindow?.webContents.send('show-message', 'Audio recording not available. Please run: npm run setup-audio');
+        pastilleWindow?.webContents.send('show-message', 'Audio recording not available. Please check your microphone.');
         pastilleWindow?.show();
         recorder = null;
         return;
@@ -600,6 +597,19 @@ const handleTextToSpeech = async () => {
 // Some APIs can only be used after this event occurs.
 app.on('ready', async () => {
   console.log('🚀 MetaKeyAI starting up...');
+  
+  // Setup microphone permission handler for Web Audio APIs
+  console.log('🎤 Setting up microphone permission handler...');
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    console.log('🔐 Permission request:', permission);
+    if (permission === 'media') {
+      console.log('✅ Granting microphone access for Web Audio APIs');
+      callback(true); // Allow microphone access
+    } else {
+      console.log('❌ Denying permission:', permission);
+      callback(false);
+    }
+  });
   
   // Create debug menu for Windows
   createDebugMenu();
@@ -781,15 +791,15 @@ function createDebugMenu() {
             click: async () => {
               try {
                 logger.log('🎤 Testing audio recording...');
-                const audioRecorder = new AudioRecorder();
+                const audioRecorder = new WebAudioRecorder();
                 await audioRecorder.start();
                 setTimeout(async () => {
-                  const file = await audioRecorder.stop();
-                  logger.log(`✅ Audio test completed: ${file}`);
+                  audioRecorder.stop();
+                  logger.log(`✅ Audio test completed`);
                   dialog.showMessageBox({
                     type: 'info',
                     title: 'Audio Test',
-                    message: `Audio recording test completed!\nFile: ${file}`,
+                    message: `Audio recording test completed! Check logs for details.`,
                     buttons: ['OK']
                   });
                 }, 2000);
@@ -1074,6 +1084,7 @@ async function initializeApp() {
   });
 
   pastilleWindow.loadURL(PASTILLE_WINDOW_WEBPACK_ENTRY);
+  (global as any).pastilleWindow = pastilleWindow; // Make window accessible to other modules
   pastilleWindow.setIgnoreMouseEvents(false);
   
   // Initialize pastille with current clipboard content once it's ready
@@ -1406,8 +1417,8 @@ function setupIpcListeners() {
     try {
       console.log('🎤 Discovering microphones...');
       
-      // Create a temporary AudioRecorder instance for discovery
-      const tempRecorder = new AudioRecorder();
+      // Create a temporary recorder instance for discovery
+      const tempRecorder = new WebAudioRecorder();
       const audioInfo = await tempRecorder.getAudioDeviceInfo();
       
       console.log('🎤 Audio device info:', audioInfo);
@@ -1433,13 +1444,14 @@ function setupIpcListeners() {
       console.log('🎤 Setting microphone device:', deviceName);
       
       if (recorder) {
-        if (deviceName === 'auto') {
-          // Clear user preference to use auto-detection
-          recorder.setUserAudioDevice('');
-        } else {
-          // Set specific device
-          recorder.setUserAudioDevice(deviceName);
-        }
+        // If recorder already exists, use it
+        recorder.setUserAudioDevice(deviceName === 'auto' ? '' : deviceName);
+      } else {
+        // Create a temporary instance just to save the setting to disk.
+        // The main recorder will be created on first use and will load this setting.
+        const tempRecorder = new WebAudioRecorder();
+        tempRecorder.setUserAudioDevice(deviceName === 'auto' ? '' : deviceName);
+        console.log('🎤 Saved microphone setting via temporary recorder instance.');
       }
     } catch (error) {
       console.error('❌ Error setting microphone device:', error);
@@ -1450,8 +1462,8 @@ function setupIpcListeners() {
     try {
       console.log('🎙️ Testing microphone:', device, 'for', duration, 'ms');
       
-      // Create a test AudioRecorder instance
-      const testRecorder = new AudioRecorder();
+      // Create a test recorder instance
+      const testRecorder = new WebAudioRecorder();
       
       // Set device if not auto
       if (device && device !== 'auto') {

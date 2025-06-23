@@ -26,14 +26,24 @@ function verifyWindowsBuild() {
   
   // Check required binaries
   const requiredFiles = [
-    { path: path.join(resourcesDir, 'uv.exe'), desc: 'UV Package Manager' },
-    { path: path.join(resourcesDir, 'python', 'python.exe'), desc: 'Embedded Python' },
-    { path: path.join(resourcesDir, 'sox.exe'), desc: 'Sox Audio Processor' }
+    { path: path.join(resourcesDir, 'python', 'python.exe'), desc: 'Embedded Python', required: true },
+    { path: path.join(resourcesDir, 'sox.exe'), desc: 'Sox Audio Processor', required: true }
+  ];
+  
+  // Check optional binaries
+  const optionalFiles = [
+    { path: path.join(resourcesDir, 'uv.exe'), desc: 'UV Package Manager', required: false }
   ];
   
   requiredFiles.forEach(file => {
     if (!checkFile(file.path, file.desc)) {
       allGood = false;
+    }
+  });
+  
+  optionalFiles.forEach(file => {
+    if (!checkFile(file.path, file.desc)) {
+      console.log(`⚠️ Optional: ${file.desc} not bundled - app will download at runtime`);
     }
   });
   

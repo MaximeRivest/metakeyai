@@ -25,10 +25,35 @@ async function buildPythonServer() {
       fs.mkdirSync(destDir, { recursive: true });
     }
     const destUvPath = path.join(destDir, process.platform === 'win32' ? 'uv.exe' : 'uv');
-    fs.copyFileSync(uvPath, destUvPath);
-    console.log(`✅ Bundled uv binary at: ${destUvPath}`);
-  } catch (err) {
-    console.warn('⚠️ Failed to bundle uv binary:', err.message);
+    
+    // If uvPath is just 'uv' or 'uv.exe', we need to find the actual executable
+    let actualUvPath = uvPath;
+    if (uvPath === 'uv' || uvPath === 'uv.exe') {
+      // Use 'where' on Windows, 'which' on Unix to find the actual path
+      const findCommand = process.platform === 'win32' ? 'where' : 'which';
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const proc = spawn(findCommand, [uvPath], { stdio: 'pipe' });
+          let stdout = '';
+          proc.stdout.on('data', data => stdout += data);
+          proc.on('close', code => {
+            if (code === 0) resolve(stdout.trim().split('\n')[0]);
+            else reject(new Error(`${findCommand} failed`));
+          });
+        });
+        actualUvPath = result;
+        console.log(`🔍 Found UV executable at: ${actualUvPath}`);
+      } catch (error) {
+        console.log(`⚠️ Could not locate UV executable: ${error.message}`);
+        throw error;
+      }
+    }
+    
+    fs.copyFileSync(actualUvPath, destUvPath);
+    console.log(`✅ Bundled UV binary: ${actualUvPath} -> ${destUvPath}`);
+  } catch (error) {
+    console.log(`⚠️ Failed to bundle uv binary: ${error.message}`);
+    // Don't fail the build - the app can work without bundled UV
   }
 
   if (process.platform === 'win32') {
@@ -219,23 +244,33 @@ async function copyDirectory(src, dest) {
 }
 
 async function findUV() {
-  // Check if UV is in PATH
+  // Check if UV is in PATH first
   try {
-    await runCommand('uv', ['--version']);
-    return 'uv';
+    const uvCommand = process.platform === 'win32' ? 'uv.exe' : 'uv';
+    await runCommand(uvCommand, ['--version']);
+    return uvCommand;
   } catch (error) {
     // Try common installation paths
-    const commonPaths = [
-      path.join(process.env.HOME || '', '.cargo', 'bin', 'uv'),
+    const commonPaths = process.platform === 'win32' ? [
+      // Windows paths
+      path.join(process.env.USERPROFILE || '', '.local', 'bin', 'uv.exe'),
       path.join(process.env.USERPROFILE || '', '.cargo', 'bin', 'uv.exe'),
+      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'uv', 'uv.exe'),
+      'C:\\Users\\Public\\uv\\uv.exe',
+      'C:\\Program Files\\uv\\uv.exe'
+    ] : [
+      // Unix paths
+      path.join(process.env.HOME || '', '.cargo', 'bin', 'uv'),
+      path.join(process.env.HOME || '', '.local', 'bin', 'uv'),
       '/usr/local/bin/uv',
-      'C:\\Users\\Public\\uv\\uv.exe'
+      '/usr/bin/uv'
     ];
     
     for (const uvPath of commonPaths) {
       if (fs.existsSync(uvPath)) {
         try {
           await runCommand(uvPath, ['--version']);
+          console.log(`✅ Found UV at: ${uvPath}`);
           return uvPath;
         } catch (e) {
           continue;

@@ -1181,6 +1181,40 @@ async function initializeApp() {
     console.warn('⚠️ Model configuration migration failed:', error);
   }
   
+  // Load and apply model configuration to environment
+  try {
+    console.log('🤖 Loading model configuration...');
+    const modelConfig = readEnvConfig();
+    
+    if (modelConfig) {
+      // Apply environment variables to current process
+      Object.entries(modelConfig.env || {}).forEach(([key, value]) => {
+        process.env[key] = value;
+        // Don't log sensitive values like API keys
+        const isSensitive = key.toLowerCase().includes('key') || key.toLowerCase().includes('token') || key.toLowerCase().includes('secret');
+        const displayValue = isSensitive ? '***' : (value || 'undefined');
+        console.log(`🔧 Set env var: ${key} = ${displayValue}`);
+      });
+      
+      // Apply LLM configuration
+      if (modelConfig.llm) {
+        process.env['METAKEYAI_LLM'] = modelConfig.llm;
+        console.log(`🤖 Set METAKEYAI_LLM: ${modelConfig.llm}`);
+      }
+      
+      // Update config object for runtime
+      (config as any).ENV_VARS = modelConfig.env || {};
+      (config as any).DEFAULT_LLM = modelConfig.llm || '';
+      (config as any).LLM_LIST = modelConfig.llms || [];
+      
+      console.log('✅ Model configuration loaded and applied');
+    } else {
+      console.log('ℹ️ No model configuration found - using defaults');
+    }
+  } catch (error) {
+    console.error('❌ Failed to load model configuration:', error);
+  }
+  
   console.log('📋 Initializing clipboard history...');
   clipboardHistory = new ClipboardHistory(50);
   

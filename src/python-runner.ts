@@ -150,10 +150,9 @@ export class PythonRunner extends EventEmitter {
         if (options.scriptFile) {
           scriptPath = options.scriptFile;
         } else if (options.script) {
-          // Create temporary file for inline script – prepend bootstrap to auto-configure DSPy
-          const BOOTSTRAP = `\nimport os\nimport sys\ntry:\n    import dspy\n    from importlib import import_module as _imp\n    _ds = _imp('dspy').settings\n    if getattr(_ds, 'lm', None) is None:\n        _mdl = os.getenv('METAKEYAI_LLM')\n        try:\n            _ds.lm = dspy.LM(_mdl)\n        except Exception as _e:\n            pass\nexcept ImportError:\n    pass\n`;
-          tempFile = path.join(tmpdir(), `metakey_script_${Date.now()}.py`);
-          fs.writeFileSync(tempFile, BOOTSTRAP + "\n" + options.script);
+                     // No bootstrap needed - daemon handles DSPy configuration
+            tempFile = path.join(tmpdir(), `metakey_script_${Date.now()}.py`);
+            fs.writeFileSync(tempFile, options.script);
           scriptPath = tempFile;
         } else {
           throw new Error('Either script or scriptFile must be provided');

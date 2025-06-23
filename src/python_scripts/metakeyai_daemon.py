@@ -43,13 +43,30 @@ def log(*args, **kwargs):
 # LLM / ENV management
 # ---------------------------------------------------------------------------
 
-# Try to import dspy, but don't fail if it's not there.
+# Import dspy and configure it properly
+dspy = None
+dspy_error = None
+
 try:
     import dspy
     log("✅ dspy-ai package found.")
-except ImportError:
-    dspy = None
+    
+    # Configure DSPy immediately with environment model if available
+    model_name = os.getenv("METAKEYAI_LLM")
+    if model_name:
+        try:
+            log(f"🔧 Configuring DSPy with model: {model_name}")
+            dspy.configure(lm=dspy.LM(model_name))
+            log("✅ DSPy configured successfully")
+        except Exception as e:
+            log(f"⚠️ DSPy configuration failed: {e}")
+    else:
+        log("⚠️ No METAKEYAI_LLM environment variable set")
+        
+except ImportError as e:
+    dspy_error = str(e)
     log("⚠️ dspy-ai package not found. AI features will be limited.")
+    log(f"Import error: {dspy_error}")
 
 def load_spell_module(script_file: str) -> types.ModuleType:
     """Load (and cache) a spell module from arbitrary path."""
@@ -67,23 +84,8 @@ def load_spell_module(script_file: str) -> types.ModuleType:
         raise ImportError(f"cannot import spell module from {script_path}")
 
     module = importlib.util.module_from_spec(spec)  # type: ignore
-    # Provide dspy and default LM to spell namespace automatically
+    # Provide dspy to spell namespace (already configured globally)
     if dspy:
-        try:
-            # Only configure if the LM is not already set
-            if getattr(dspy.settings, 'lm', None) is None:
-                model_str = os.getenv('METAKEYAI_LLM')
-
-                # Also check for other common provider keys if needed in future
-                # e.g., anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
-
-                if model_str:
-                    log(f"Configuring default LLM for spells: {model_str}")
-                    dspy.configure(lm=dspy.LM(model_str))
-                else:
-                    log("⚠️ Skipping LLM configuration for spells (model or key not set).")
-        except Exception as _e:
-            log(f"Failed to configure dspy LLM for spell, AI features may be limited: {_e}")
         module.__dict__['dspy'] = dspy
 
     sys.modules[module_name] = module
@@ -94,31 +96,25 @@ def load_spell_module(script_file: str) -> types.ModuleType:
 # LLM / ENV management
 # ---------------------------------------------------------------------------
 
-# More robust DSPy import handling for PyInstaller
-dspy_import_error = None
-
-def safe_import_dspy():
-    """Safely import dspy with detailed error handling."""
-    if dspy:
-        return dspy
-    return None
-
 def _configure_llm_from_env():
     """(Re)configure DSPy default LLM from environment vars."""
     if not dspy:
-        log("Cannot configure LLM - DSPy not available")
-        return
+        log("❌ Cannot configure LLM - DSPy not available")
+        return False
         
     model_name = os.getenv("METAKEYAI_LLM")
-    log(f"Configuring DSPy default LLM from environment: {model_name}")
-    log(f"DSPy version: {dspy.__version__}")
-    log(f"DSPy settings: {dspy}")
-    if model_name:
-        try:
-            dspy.configure(lm=dspy.LM(model_name))
-            log("DSPy default LLM configured ->", model_name)
-        except Exception as e:
-            log("Failed to set DSPy default LLM:", e)
+    if not model_name:
+        log("⚠️ No METAKEYAI_LLM environment variable set")
+        return False
+        
+    try:
+        log(f"🔧 Configuring DSPy LLM: {model_name}")
+        dspy.configure(lm=dspy.LM(model_name))
+        log("✅ DSPy LLM configured successfully")
+        return True
+    except Exception as e:
+        log(f"❌ Failed to configure DSPy LLM: {e}")
+        return False
 
 # ---------------------------------------------------------------------------
 # Spell Discovery
@@ -152,11 +148,27 @@ def _discover_spells():
 async def lifespan(app: FastAPI):
     """Server startup logic."""
     log("🚀 FastAPI server starting up...")
+    
+    # Log current environment
+    model_name = os.getenv("METAKEYAI_LLM")
+    log(f"🔧 Environment METAKEYAI_LLM: {model_name}")
+    
     try:
-        _configure_llm_from_env()
+        # Configure DSPy if not already done and environment is available
+        if dspy and model_name:
+            success = _configure_llm_from_env()
+            if success:
+                log("✅ DSPy configured successfully on startup")
+            else:
+                log("⚠️ DSPy configuration failed on startup")
+        elif not dspy:
+            log("⚠️ DSPy not available - AI features disabled")
+        else:
+            log("⚠️ No METAKEYAI_LLM set - DSPy not configured")
+            
         _discover_spells()
         log("✅ Spells discovered and loaded.")
-        log(f"http://127.0.0.1:{PORT}/docs for API docs")
+        log(f"📡 API docs available at: http://127.0.0.1:{PORT}/docs")
     except Exception as e:
         log("❌ Error during startup:", e)
     
@@ -169,7 +181,22 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "1.0.0", "dspy_available": bool(dspy) }
+    # Check DSPy configuration status
+    dspy_configured = False
+    if dspy:
+        try:
+            dspy_configured = hasattr(dspy.settings, 'lm') and dspy.settings.lm is not None
+        except:
+            pass
+    
+    return {
+        "status": "ok", 
+        "version": "1.0.0", 
+        "dspy_available": bool(dspy),
+        "dspy_configured": dspy_configured,
+        "model": os.getenv("METAKEYAI_LLM", "not_set"),
+        "port": PORT
+    }
 
 @app.get("/ping")
 def ping():
@@ -255,19 +282,20 @@ def update_env(payload: EnvUpdateRequest):
             os.environ[str(k)] = str(v)
         _configure_llm_from_env()
 
-        ok = False
+        ok = _configure_llm_from_env()
         msg = ""
-        if safe_import_dspy():
+        if dspy and ok:
             try:
                 model_str = os.getenv("METAKEYAI_LLM", "")
                 if model_str:
-                    tmp_lm = dspy.LM(model_str)
-                    test_out = tmp_lm("Hello")
+                    # Test the configuration by making a simple call
+                    test_out = dspy.LM(model_str)("Hello")
                     ok = len(test_out) > 0
             except Exception as e:
                 msg = str(e)
-        else:
-            msg = dspy_import_error or "DSPy not available"
+                ok = False
+        elif not dspy:
+            msg = dspy_error or "DSPy not available"
         return {"updated": list(payload.env.keys()), "ok": ok, "msg": msg}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -279,20 +307,22 @@ class QuickEditRequest(BaseModel):
 def quick_edit(payload: QuickEditRequest):
     text = payload.text
     if not text:
-        return {"result": "not text found"}
+        return {"result": "No text provided"}
     
     if not dspy:
-        # Fallback: just return the text uppercased as a simple transformation
-        return {"result": "DSPy not available"}
+        return {"result": f"DSPy not available: {dspy_error or 'Import failed'}"}
 
     try:
-             
+        # Check if DSPy is configured properly
+        if not hasattr(dspy.settings, 'lm') or dspy.settings.lm is None:
+            return {"result": "DSPy LLM not configured"}
+            
         qedit = dspy.Predict("prompt -> answer")
         improved = qedit(prompt=text).answer
         return {"result": improved.strip()}
     except Exception as e:
         log("quick_edit failed:", e)
-        return {"result": text}
+        return {"result": f"Quick edit failed: {str(e)}"}
 
 # ---------------------------------------------------------------------------
 # Main Execution

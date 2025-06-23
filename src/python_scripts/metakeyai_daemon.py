@@ -73,14 +73,13 @@ def load_spell_module(script_file: str) -> types.ModuleType:
             # Only configure if the LM is not already set
             if getattr(dspy.settings, 'lm', None) is None:
                 model_str = os.getenv('METAKEYAI_LLM')
-                api_key = os.getenv('OPENAI_API_KEY')
 
                 # Also check for other common provider keys if needed in future
                 # e.g., anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
 
-                if model_str and api_key:
+                if model_str:
                     log(f"Configuring default LLM for spells: {model_str}")
-                    dspy.settings.configure(lm=dspy.LM(model_str))
+                    dspy.configure(lm=dspy.LM(model_str))
                 else:
                     log("⚠️ Skipping LLM configuration for spells (model or key not set).")
         except Exception as _e:
@@ -113,7 +112,7 @@ def _configure_llm_from_env():
     model_name = os.getenv("METAKEYAI_LLM")
     if model_name:
         try:
-            dspy.settings.lm = dspy.LM(model_name)
+            dspy.configure(lm=dspy.LM(model_name))
             log("DSPy default LLM configured ->", model_name)
         except Exception as e:
             log("Failed to set DSPy default LLM:", e)
@@ -277,20 +276,15 @@ class QuickEditRequest(BaseModel):
 def quick_edit(payload: QuickEditRequest):
     text = payload.text
     if not text:
-        return {"result": ""}
+        return {"result": "not text found"}
     
     if not dspy:
         # Fallback: just return the text uppercased as a simple transformation
-        return {"result": text.upper()}
+        return {"result": "DSPy not available"}
 
     try:
-        lm = getattr(dspy.settings, 'lm', None)
-        if lm is None:
-            model_str = os.getenv("METAKEYAI_LLM") or "openai/gpt-3.5-turbo"
-            lm = dspy.LM(model_str)
-            dspy.settings.lm = lm
-        
-        qedit = dspy.Predict("prompt -> answer", lm=lm)
+             
+        qedit = dspy.Predict("prompt -> answer")
         improved = qedit(prompt=text).answer
         return {"result": improved.strip()}
     except Exception as e:

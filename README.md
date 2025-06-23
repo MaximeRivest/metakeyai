@@ -2,6 +2,28 @@
 
 A powerful AI-enhanced productivity tool built with Electron and Python, featuring voice recording, clipboard management, and intelligent text processing.
 
+## 📥 Download
+
+**Ready to try MetaKeyAI?** Download the latest release for your platform:
+
+[![Download Latest Release](https://img.shields.io/github/v/release/maximerivest/metakeyai?style=for-the-badge&logo=github&label=Download%20Latest)](https://github.com/maximerivest/metakeyai/releases/latest)
+
+### Platform-Specific Downloads
+
+| Platform | Download | Notes |
+|----------|----------|-------|
+| 🪟 **Windows** | [Download .exe](https://github.com/maximerivest/metakeyai/releases/latest) | Run the installer |
+| 🍎 **macOS** | [Download .zip](https://github.com/maximerivest/metakeyai/releases/latest) | Extract and run |
+| 🐧 **Linux** | [Download .AppImage](https://github.com/maximerivest/metakeyai/releases/latest) | Make executable and run |
+
+### Quick Start
+1. Download the file for your platform
+2. Install/extract and run the application
+3. The app will automatically set up Python environment on first launch
+4. Start voice recording and AI processing!
+
+---
+
 ## 🚀 Quick Start
 
 ### Python Setup (Recommended)
@@ -374,4 +396,6 @@ For Python-related development:
 
 ## License
 
-[Add your license information here] 
+This project is licensed under the GNU General Public License v3.0 or later - see the [LICENSE](LICENSE) file for details.
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0) 

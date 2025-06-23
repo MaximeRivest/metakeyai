@@ -24,12 +24,23 @@ export class AudioRecorder extends EventEmitter {
   private async initializeRecordingMethod(): Promise<void> {
     console.log('🔍 Detecting available audio recording methods...');
     
-    // Test methods in order of preference
-    const methods = [
-      { name: 'sox', test: () => this.testSox() },
-      { name: 'ffmpeg', test: () => this.testFfmpeg() },
-      { name: 'powershell', test: () => this.testPowerShell() }
-    ];
+    // Test methods in order of preference by platform
+    let methods;
+    
+    if (process.platform === 'win32') {
+      // Windows: prefer ffmpeg (more reliable) over sox
+      methods = [
+        { name: 'ffmpeg', test: () => this.testFfmpeg() },
+        { name: 'powershell', test: () => this.testPowerShell() },
+        { name: 'sox', test: () => this.testSox() }
+      ];
+    } else {
+      // Unix: prefer sox over ffmpeg
+      methods = [
+        { name: 'sox', test: () => this.testSox() },
+        { name: 'ffmpeg', test: () => this.testFfmpeg() }
+      ];
+    }
 
     for (const method of methods) {
       try {
@@ -54,6 +65,12 @@ export class AudioRecorder extends EventEmitter {
     const soxPath = this.getSoxPath();
     if (!soxPath) {
       console.log('⚠️ Sox binary not found');
+      return false;
+    }
+
+    // Check if the file actually exists before trying to spawn it
+    if (!fs.existsSync(soxPath)) {
+      console.log('⚠️ Sox binary path does not exist:', soxPath);
       return false;
     }
 
@@ -243,7 +260,7 @@ export class AudioRecorder extends EventEmitter {
           this.startPowerShellRecording();
           break;
         case 'ffmpeg':
-          this.startFFmpegRecording();
+          await this.startFFmpegRecording();
           break;
         default:
           const error = new Error('No audio recording method available. Please ensure sox, ffmpeg, or PowerShell is installed.');
@@ -306,16 +323,131 @@ export class AudioRecorder extends EventEmitter {
     this.setupRecordingHandlers('powershell');
   }
 
-  private startFFmpegRecording(): void {
+  private async getAudioDevice(): Promise<string> {
+    if (process.platform === 'win32') {
+      return this.getWindowsAudioDevice();
+    } else if (process.platform === 'darwin') {
+      return this.getMacAudioDevice();
+    } else {
+      return this.getLinuxAudioDevice();
+    }
+  }
+
+  private async getWindowsAudioDevice(): Promise<string> {
+    try {
+      // First, try to enumerate DirectShow audio devices
+      const result = await this.runCommand('ffmpeg', ['-list_devices', 'true', '-f', 'dshow', '-i', 'dummy'], 5000);
+      const output = result.stderr; // ffmpeg outputs device list to stderr
+      
+      // Parse the output to find audio input devices
+      const lines = output.split('\n');
+      let inAudioSection = false;
+      
+      for (const line of lines) {
+        if (line.includes('DirectShow audio devices')) {
+          inAudioSection = true;
+          continue;
+        }
+        if (inAudioSection && line.includes('DirectShow video devices')) {
+          break;
+        }
+        if (inAudioSection && line.includes('"')) {
+          // Extract device name from line like: [dshow @ 000...] "Microphone Array (Realtek Audio)"
+          const match = line.match(/"([^"]+)"/);
+          if (match) {
+            console.log(`🎤 Found Windows audio device: ${match[1]}`);
+            return match[1];
+          }
+        }
+      }
+      
+      // Fallback: try common device names
+      const commonNames = [
+        'Microphone',
+        'Microphone Array', 
+        'Built-in Microphone',
+        'Internal Microphone'
+      ];
+      
+      for (const name of commonNames) {
+        try {
+          // Test if this device name works with a 0.1 second test recording
+          await this.runCommand('ffmpeg', ['-f', 'dshow', '-i', `audio="${name}"`, '-t', '0.1', '-f', 'null', '-'], 3000);
+          console.log(`🎤 Verified Windows audio device: ${name}`);
+          return name;
+        } catch (e) {
+          // Continue to next name
+        }
+      }
+      
+      throw new Error('No working audio device found');
+    } catch (error) {
+      console.log('⚠️ Could not enumerate Windows audio devices:', error.message);
+      return ''; // Use empty string for default device
+    }
+  }
+
+  private async getMacAudioDevice(): Promise<string> {
+    try {
+      // macOS: use avfoundation device enumeration
+      const result = await this.runCommand('ffmpeg', ['-f', 'avfoundation', '-list_devices', 'true', '-i', ''], 3000);
+      const output = result.stderr;
+      
+      // Look for audio input devices
+      const lines = output.split('\n');
+      for (const line of lines) {
+        if (line.includes('AVFoundation audio devices') || line.includes('[AVFoundation input device @')) {
+          const match = line.match(/\[(\d+)\]/);
+          if (match) {
+            console.log(`🎤 Found macOS audio device index: ${match[1]}`);
+            return `:${match[1]}`; // Use :index format for avfoundation
+          }
+        }
+      }
+      
+      return ':0'; // Default to first audio device
+    } catch (error) {
+      console.log('⚠️ Could not enumerate macOS audio devices:', error.message);
+      return ':0'; // Default fallback
+    }
+  }
+
+  private async getLinuxAudioDevice(): Promise<string> {
+    try {
+      // Linux: check ALSA devices
+      const result = await this.runCommand('arecord', ['-l'], 3000);
+      const output = result.stdout;
+      
+      if (output.includes('card')) {
+        console.log('🎤 Found Linux ALSA audio devices');
+        return 'default'; // Use ALSA default
+      }
+      
+      // Fallback to PulseAudio
+      try {
+        await this.runCommand('pactl', ['list', 'sources', 'short'], 3000);
+        console.log('🎤 Using PulseAudio default source');
+        return 'default';
+      } catch (e) {
+        return 'hw:0'; // Hardware device fallback
+      }
+    } catch (error) {
+      console.log('⚠️ Could not enumerate Linux audio devices:', error.message);
+      return 'default';
+    }
+  }
+
+  private async startFFmpegRecording(): Promise<void> {
     console.log('🔧 Using ffmpeg for recording');
     
     let ffmpegArgs: string[];
     
     if (process.platform === 'win32') {
-      // Windows: use DirectShow
+      // Windows: use DirectShow with proper device detection
+      const deviceName = await this.getWindowsAudioDevice();
       ffmpegArgs = [
         '-f', 'dshow',
-        '-i', 'audio="Microphone"',
+        '-i', deviceName ? `audio="${deviceName}"` : 'audio=',
         '-acodec', 'pcm_s16le',
         '-ar', '16000',
         '-ac', '1',
@@ -323,10 +455,11 @@ export class AudioRecorder extends EventEmitter {
         this.outputFile
       ];
     } else if (process.platform === 'darwin') {
-      // macOS: use avfoundation
+      // macOS: use avfoundation with device detection
+      const deviceInput = await this.getMacAudioDevice();
       ffmpegArgs = [
         '-f', 'avfoundation',
-        '-i', ':0',
+        '-i', deviceInput,
         '-acodec', 'pcm_s16le',
         '-ar', '16000',
         '-ac', '1',
@@ -334,10 +467,11 @@ export class AudioRecorder extends EventEmitter {
         this.outputFile
       ];
     } else {
-      // Linux: use ALSA
+      // Linux: use ALSA/PulseAudio with device detection
+      const deviceName = await this.getLinuxAudioDevice();
       ffmpegArgs = [
         '-f', 'alsa',
-        '-i', 'default',
+        '-i', deviceName,
         '-acodec', 'pcm_s16le',
         '-ar', '16000',
         '-ac', '1',

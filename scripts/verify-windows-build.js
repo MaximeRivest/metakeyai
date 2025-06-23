@@ -26,11 +26,10 @@ function verifyWindowsBuild() {
   
   // Check required binaries
   const requiredFiles = [
-    { path: path.join(resourcesDir, 'python', 'python.exe'), desc: 'Embedded Python', required: true },
-    { path: path.join(resourcesDir, 'sox.exe'), desc: 'Sox Audio Processor', required: true }
+    { path: path.join(resourcesDir, 'python', 'python.exe'), desc: 'Embedded Python', required: true }
   ];
   
-  // Check optional binaries
+  // Check optional binaries (these improve performance but aren't required)
   const optionalFiles = [
     { path: path.join(resourcesDir, 'uv.exe'), desc: 'UV Package Manager', required: false }
   ];
@@ -47,6 +46,15 @@ function verifyWindowsBuild() {
     }
   });
   
+  // Verify sox.exe is NOT present (we removed problematic stubs)
+  const soxPath = path.join(resourcesDir, 'sox.exe');
+  if (fs.existsSync(soxPath)) {
+    console.log(`⚠️ Sox stub found at ${soxPath} - this may cause spawn errors`);
+    console.log(`🔧 Consider removing it to use ffmpeg/PowerShell fallback`);
+  } else {
+    console.log(`✅ No sox stub present - will use reliable ffmpeg/PowerShell fallback`);
+  }
+  
   // Check Python environment structure
   const pythonDir = path.join(resourcesDir, 'python');
   if (fs.existsSync(pythonDir)) {
@@ -60,6 +68,12 @@ function verifyWindowsBuild() {
       checkFile(filePath, `Python ${file}`);
     });
   }
+  
+  console.log('\n' + '='.repeat(50));
+  console.log('📋 Windows Audio Strategy:');
+  console.log('  1. FFmpeg DirectShow (primary) - robust device detection');
+  console.log('  2. PowerShell MediaPlayer (fallback) - always available');
+  console.log('  3. No sox dependency - eliminates spawn errors');
   
   console.log('\n' + '='.repeat(50));
   if (allGood) {

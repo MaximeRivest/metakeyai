@@ -50,31 +50,42 @@ export class PythonDaemon extends EventEmitter {
 
   /**
    * Find an available port starting from the given port
+   * Uses a more robust approach to prevent race conditions
    */
   private async findAvailablePort(startPort: number = 5000): Promise<number> {
     return new Promise((resolve, reject) => {
-      const server = net.createServer();
-      
-      server.listen(startPort, () => {
-        const port = (server.address() as net.AddressInfo)?.port;
-        server.close(() => {
-          if (port) {
-            console.log(`🔌 Found available port: ${port}`);
-            resolve(port);
+      // Try multiple ports in sequence to avoid race conditions
+      const tryPort = (port: number, attempts: number = 0): void => {
+        if (attempts > 100) {
+          reject(new Error('Could not find available port after 100 attempts'));
+          return;
+        }
+
+        const server = net.createServer();
+        
+        server.listen(port, '127.0.0.1', () => {
+          const actualPort = (server.address() as net.AddressInfo)?.port;
+          server.close(() => {
+            if (actualPort) {
+              console.log(`🔌 Found available port: ${actualPort}`);
+              resolve(actualPort);
+            } else {
+              tryPort(port + 1, attempts + 1);
+            }
+          });
+        });
+        
+        server.on('error', (err: any) => {
+          if (err.code === 'EADDRINUSE') {
+            console.log(`🔌 Port ${port} is busy, trying ${port + 1}`);
+            tryPort(port + 1, attempts + 1);
           } else {
-            reject(new Error('Could not determine port'));
+            reject(err);
           }
         });
-      });
-      
-      server.on('error', (err: any) => {
-        if (err.code === 'EADDRINUSE') {
-          console.log(`🔌 Port ${startPort} is busy, trying ${startPort + 1}`);
-          this.findAvailablePort(startPort + 1).then(resolve).catch(reject);
-        } else {
-          reject(err);
-        }
-      });
+      };
+
+      tryPort(startPort);
     });
   }
 

@@ -22,21 +22,14 @@ async function setupWindowsAudio() {
   }
 
   const soxPath = path.join(resourcesDir, 'sox.exe');
+  
+  // Remove any existing sox stub that might cause spawn errors
   if (fs.existsSync(soxPath)) {
-    console.log('🔊 sox.exe already exists, skipping setup');
-    return;
+    fs.unlinkSync(soxPath);
+    console.log('🔊 Removed problematic sox stub');
   }
-
-  console.log('🔊 Creating sox.exe stub for Windows...');
   
-  // Create a batch file that indicates sox is not available
-  // The app will detect this and fall back to ffmpeg/powershell
-  const stubContent = `@echo off
-echo Sox not available - using ffmpeg fallback
-exit 1`;
-  
-  fs.writeFileSync(soxPath, stubContent);
-  console.log('🔊 Sox stub created - app will use ffmpeg/PowerShell for audio');
+  console.log('🔊 Windows audio will use ffmpeg/PowerShell fallback (more reliable)');
 }
 
 async function setupAudioBinaries() {

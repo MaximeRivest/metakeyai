@@ -1307,7 +1307,8 @@ function setupIpcListeners() {
     const settings = {
       OPENAI_API_KEY: config.OPENAI_API_KEY || '',
       WHISPER_MODEL: config.WHISPER_MODEL,
-      TTS_VOICE: config.TTS_VOICE
+      TTS_VOICE: config.TTS_VOICE,
+      MICROPHONE_DEVICE: recorder?.getUserAudioDevice() || 'auto'
     };
     event.reply('settings-loaded', settings);
   });
@@ -1320,11 +1321,20 @@ function setupIpcListeners() {
       config.WHISPER_MODEL = newSettings.WHISPER_MODEL;
       config.TTS_VOICE = newSettings.TTS_VOICE;
       
+      // Update microphone device if provided
+      if (newSettings.MICROPHONE_DEVICE !== undefined && recorder) {
+        if (newSettings.MICROPHONE_DEVICE === 'auto') {
+          recorder.setUserAudioDevice('');
+        } else {
+          recorder.setUserAudioDevice(newSettings.MICROPHONE_DEVICE);
+        }
+      }
+      
       console.log('✅ Settings updated successfully');
       event.reply('settings-saved', true, 'Settings saved successfully!');
     } catch (error) {
       console.error('❌ Error saving settings:', error);
-      event.reply('settings-saved', false, 'Failed to save settings: ' + error.message);
+      event.reply('settings-saved', false, 'Failed to save settings: ' + (error as Error).message);
     }
   });
 
@@ -1388,6 +1398,133 @@ function setupIpcListeners() {
       return { ok: res?.ok !== false, msg: res?.msg || '' };
     } catch (err) {
       return { ok: false, msg: (err as Error).message };
+    }
+  });
+
+  // Microphone management IPC handlers
+  ipcMain.on('discover-microphones', async (event) => {
+    try {
+      console.log('🎤 Discovering microphones...');
+      
+      // Create a temporary AudioRecorder instance for discovery
+      const tempRecorder = new AudioRecorder();
+      const audioInfo = await tempRecorder.getAudioDeviceInfo();
+      
+      console.log('🎤 Audio device info:', audioInfo);
+      
+      event.reply('microphones-discovered', audioInfo);
+      event.reply('microphone-status', {
+        status: audioInfo.needsConfiguration ? 'warning' : 'connected',
+        message: audioInfo.needsConfiguration 
+          ? 'Multiple microphones detected. Consider selecting a specific device.'
+          : `Ready with ${audioInfo.currentRecordingMethod} method`
+      });
+    } catch (error) {
+      console.error('❌ Error discovering microphones:', error);
+      event.reply('microphone-status', {
+        status: 'disconnected',
+        message: `Error: ${(error as Error).message}`
+      });
+    }
+  });
+
+  ipcMain.on('set-microphone-device', (event, deviceName) => {
+    try {
+      console.log('🎤 Setting microphone device:', deviceName);
+      
+      if (recorder) {
+        if (deviceName === 'auto') {
+          // Clear user preference to use auto-detection
+          recorder.setUserAudioDevice('');
+        } else {
+          // Set specific device
+          recorder.setUserAudioDevice(deviceName);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error setting microphone device:', error);
+    }
+  });
+
+  ipcMain.on('test-microphone', async (event, { device, duration = 3000 }) => {
+    try {
+      console.log('🎙️ Testing microphone:', device, 'for', duration, 'ms');
+      
+      // Create a test AudioRecorder instance
+      const testRecorder = new AudioRecorder();
+      
+      // Set device if not auto
+      if (device && device !== 'auto') {
+        testRecorder.setUserAudioDevice(device);
+      }
+      
+      let testResult = {
+        success: false,
+        error: '',
+        duration: 0,
+        method: '',
+        fileSize: 0
+      };
+      
+      // Set up event listeners for the test
+      testRecorder.on('finished', (outputFile: string) => {
+        try {
+          const fs = require('fs');
+          const stats = fs.statSync(outputFile);
+          testResult = {
+            success: true,
+            error: '',
+            duration: duration,
+            method: testRecorder.getRecordingMethod(),
+            fileSize: stats.size
+          };
+          
+          // Clean up test file
+          fs.unlinkSync(outputFile);
+          
+          event.reply('microphone-test-result', testResult);
+        } catch (cleanupError) {
+          console.error('❌ Error cleaning up test file:', cleanupError);
+          event.reply('microphone-test-result', {
+            success: true,
+            error: '',
+            duration: duration,
+            method: testRecorder.getRecordingMethod(),
+            fileSize: 0
+          });
+        }
+      });
+      
+      testRecorder.on('error', (error: Error) => {
+        testResult = {
+          success: false,
+          error: error.message,
+          duration: 0,
+          method: testRecorder.getRecordingMethod(),
+          fileSize: 0
+        };
+        event.reply('microphone-test-result', testResult);
+      });
+      
+      // Start the test recording
+      await testRecorder.start();
+      
+      // Stop after specified duration
+      setTimeout(() => {
+        if (testRecorder.isRecording) {
+          testRecorder.stop();
+        }
+      }, duration);
+      
+    } catch (error) {
+      console.error('❌ Error testing microphone:', error);
+      event.reply('microphone-test-result', {
+        success: false,
+        error: (error as Error).message,
+        duration: 0,
+        method: 'unknown',
+        fileSize: 0
+      });
     }
   });
 }

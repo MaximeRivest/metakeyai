@@ -389,6 +389,13 @@ export class AudioRecorder extends EventEmitter {
   }
 
   private async getWindowsAudioDevice(): Promise<string> {
+    // Check if user has configured a specific device
+    const userDevice = this.getUserAudioDevice();
+    if (userDevice && userDevice !== 'auto') {
+      console.log(`🎤 Using user-configured device: ${userDevice}`);
+      return userDevice;
+    }
+
     try {
       // First, try to enumerate DirectShow audio devices
       const result = await this.runCommand('ffmpeg', ['-list_devices', 'true', '-f', 'dshow', '-i', 'dummy'], 5000);
@@ -397,6 +404,7 @@ export class AudioRecorder extends EventEmitter {
       // Parse the output to find audio input devices
       const lines = output.split('\n');
       let inAudioSection = false;
+      const discoveredDevices: string[] = [];
       
       for (const line of lines) {
         if (line.includes('DirectShow audio devices')) {
@@ -411,36 +419,56 @@ export class AudioRecorder extends EventEmitter {
           const match = line.match(/"([^"]+)"/);
           if (match) {
             const deviceName = match[1];
+            discoveredDevices.push(deviceName);
             console.log(`🎤 Found Windows audio device: ${deviceName}`);
-            
-            // Test if this device works with a quick test
-            try {
-              await this.runCommand('ffmpeg', ['-f', 'dshow', '-i', `audio="${deviceName}"`, '-t', '0.1', '-f', 'null', '-'], 3000);
-              console.log(`🎤 Verified Windows audio device: ${deviceName}`);
-              return deviceName;
-            } catch (testError) {
-              console.log(`⚠️ Device test failed for ${deviceName}:`, testError.message);
-              // Continue to try other devices or fallbacks
-            }
           }
         }
       }
+
+      // Test devices in order of preference and return the first working one
+      for (const deviceName of discoveredDevices) {
+        try {
+          // Test if this device works with a quick test (following AI recommendations)
+          await this.runCommand('ffmpeg', ['-f', 'dshow', '-i', `audio="${deviceName}"`, '-t', '0.1', '-f', 'null', '-'], 3000);
+          console.log(`🎤 Verified Windows audio device: ${deviceName}`);
+          return deviceName;
+        } catch (testError) {
+          console.log(`⚠️ Device test failed for ${deviceName}:`, testError.message);
+          // Continue to try other devices
+        }
+      }
       
-      // Fallback: try common device names
-      const commonNames = [
+      // Try WASAPI as alternative (AI recommendation)
+      console.log('🎤 Trying WASAPI as fallback...');
+      try {
+        for (const deviceName of discoveredDevices) {
+          try {
+            await this.runCommand('ffmpeg', ['-f', 'wasapi', '-i', `audio="${deviceName}"`, '-t', '0.1', '-f', 'null', '-'], 3000);
+            console.log(`🎤 Verified Windows WASAPI device: ${deviceName}`);
+            return deviceName;
+          } catch (wasapiError) {
+            // Continue
+          }
+        }
+      } catch (e) {
+        // WASAPI not available
+      }
+      
+      // Fallback: try common device names and default
+      const fallbackNames = [
+        'default',  // AI recommendation: try default first
         'Microphone',
         'Microphone Array', 
         'Built-in Microphone',
-        'Internal Microphone',
-        'Default'
+        'Internal Microphone'
       ];
       
-      for (const name of commonNames) {
+      for (const name of fallbackNames) {
         try {
           // Test if this device name works with a 0.1 second test recording
-          await this.runCommand('ffmpeg', ['-f', 'dshow', '-i', `audio="${name}"`, '-t', '0.1', '-f', 'null', '-'], 3000);
+          await this.runCommand('ffmpeg', ['-f', 'dshow', '-i', name === 'default' ? 'audio=default' : `audio="${name}"`, '-t', '0.1', '-f', 'null', '-'], 3000);
           console.log(`🎤 Verified Windows fallback device: ${name}`);
-          return name;
+          return name === 'default' ? '' : name; // Return empty for default to trigger auto-detection
         } catch (e) {
           // Continue to next name
         }
@@ -512,15 +540,21 @@ export class AudioRecorder extends EventEmitter {
     if (process.platform === 'win32') {
       // Windows: use DirectShow with proper device detection
       const deviceName = await this.getWindowsAudioDevice();
+      
+      // If no device name (empty string), it means use default/auto
+      const audioInput = deviceName ? `audio="${deviceName}"` : 'audio=default';
+      
       ffmpegArgs = [
         '-f', 'dshow',
-        '-i', deviceName ? `audio="${deviceName}"` : 'audio=',
+        '-i', audioInput,
         '-acodec', 'pcm_s16le',
         '-ar', '16000',
         '-ac', '1',
         '-y', // overwrite output file
         this.outputFile
       ];
+      
+      console.log(`🎤 Windows: Using audio input: ${audioInput}`);
     } else if (process.platform === 'darwin') {
       // macOS: use avfoundation with device detection
       const deviceInput = await this.getMacAudioDevice();
@@ -533,6 +567,8 @@ export class AudioRecorder extends EventEmitter {
         '-y', // overwrite output file
         this.outputFile
       ];
+      
+      console.log(`🎤 macOS: Using audio input: ${deviceInput}`);
     } else {
       // Linux: use ALSA/PulseAudio with device detection
       const deviceName = await this.getLinuxAudioDevice();
@@ -545,6 +581,8 @@ export class AudioRecorder extends EventEmitter {
         '-y', // overwrite output file
         this.outputFile
       ];
+      
+      console.log(`🎤 Linux: Using audio input: ${deviceName}`);
     }
 
     console.log('🔧 Starting ffmpeg with args:', ffmpegArgs);

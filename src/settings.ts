@@ -4,6 +4,7 @@ interface Settings {
   OPENAI_API_KEY: string;
   WHISPER_MODEL: string;
   TTS_VOICE: string;
+  MICROPHONE_DEVICE?: string;
 }
 
 interface ShortcutConfig {
@@ -34,6 +35,14 @@ class SettingsRenderer {
   private deleteLlmBtn: HTMLButtonElement;
   private testEnvBtn: HTMLButtonElement;
   private envStatus: HTMLElement;
+  private microphoneSelect: HTMLSelectElement;
+  private refreshMicBtn: HTMLButtonElement;
+  private testMicBtn: HTMLButtonElement;
+  private micStatus: HTMLElement;
+  private micHelpText: HTMLElement;
+  private micTestResult: HTMLElement;
+  private micTestStatus: HTMLElement;
+  private micTestInfo: HTMLElement;
   
   private shortcuts: ShortcutConfig[] = [];
   private editingShortcut: string | null = null;
@@ -43,7 +52,8 @@ class SettingsRenderer {
   private currentSettings: Settings = {
     OPENAI_API_KEY: '',
     WHISPER_MODEL: 'whisper-1',
-    TTS_VOICE: 'ballad'
+    TTS_VOICE: 'ballad',
+    MICROPHONE_DEVICE: 'auto'
   };
 
   constructor() {
@@ -65,11 +75,20 @@ class SettingsRenderer {
     this.deleteLlmBtn = document.getElementById('delete-llm') as HTMLButtonElement;
     this.testEnvBtn = document.getElementById('test-env') as HTMLButtonElement;
     this.envStatus = document.getElementById('env-status')!;
+    this.microphoneSelect = document.getElementById('microphone-device') as HTMLSelectElement;
+    this.refreshMicBtn = document.getElementById('refresh-microphones') as HTMLButtonElement;
+    this.testMicBtn = document.getElementById('test-microphone') as HTMLButtonElement;
+    this.micStatus = document.getElementById('mic-status')!;
+    this.micHelpText = document.getElementById('mic-help-text')!;
+    this.micTestResult = document.getElementById('mic-test-result')!;
+    this.micTestStatus = document.getElementById('mic-test-status')!;
+    this.micTestInfo = document.getElementById('mic-test-info')!;
 
     this.setupEventListeners();
     this.loadSettings();
     this.loadShortcuts();
     this.loadEnvSettings();
+    this.loadMicrophoneSettings();
   }
 
   private setupEventListeners() {
@@ -99,10 +118,23 @@ class SettingsRenderer {
     });
 
     // Form change detection
-    [this.apiKeyInput, this.whisperModelSelect, this.ttsVoiceSelect].forEach(element => {
+    [this.apiKeyInput, this.whisperModelSelect, this.ttsVoiceSelect, this.microphoneSelect].forEach(element => {
       element.addEventListener('change', () => {
         this.markUnsaved();
       });
+    });
+
+    // Microphone event listeners
+    this.refreshMicBtn.addEventListener('click', () => {
+      this.refreshMicrophones();
+    });
+
+    this.testMicBtn.addEventListener('click', () => {
+      this.testMicrophone();
+    });
+
+    this.microphoneSelect.addEventListener('change', () => {
+      this.onMicrophoneDeviceChange();
     });
 
     // IPC listeners
@@ -138,6 +170,19 @@ class SettingsRenderer {
       this.envStatus.className = ok ? 'status success' : 'status error';
       if (ok) setTimeout(()=>this.envStatus.textContent='',3000);
     });
+
+    // Microphone IPC listeners
+    settingsIpcRenderer.on('microphones-discovered', (event: any, data: any) => {
+      this.populateMicrophoneDevices(data);
+    });
+
+    settingsIpcRenderer.on('microphone-status', (event: any, status: any) => {
+      this.updateMicrophoneStatus(status);
+    });
+
+    settingsIpcRenderer.on('microphone-test-result', (event: any, result: any) => {
+      this.showMicrophoneTestResult(result);
+    });
   }
 
   private loadSettings() {
@@ -156,6 +201,7 @@ class SettingsRenderer {
     
     this.whisperModelSelect.value = this.currentSettings.WHISPER_MODEL;
     this.ttsVoiceSelect.value = this.currentSettings.TTS_VOICE;
+    this.microphoneSelect.value = this.currentSettings.MICROPHONE_DEVICE || 'auto';
 
     this.clearSaveStatus();
   }
@@ -166,7 +212,8 @@ class SettingsRenderer {
     const settings: Settings = {
       OPENAI_API_KEY: this.getApiKey(),
       WHISPER_MODEL: this.whisperModelSelect.value,
-      TTS_VOICE: this.ttsVoiceSelect.value
+      TTS_VOICE: this.ttsVoiceSelect.value,
+      MICROPHONE_DEVICE: this.microphoneSelect.value
     };
 
     console.log('📤 Sending settings to main process:', {
@@ -185,6 +232,7 @@ class SettingsRenderer {
     this.apiKeyInput.removeAttribute('data-full-key');
     this.whisperModelSelect.value = 'whisper-1';
     this.ttsVoiceSelect.value = 'Nova';
+    this.microphoneSelect.value = 'auto';
     
     this.markUnsaved();
     this.updateApiStatus(false);
@@ -658,6 +706,158 @@ class SettingsRenderer {
     } catch (err) {
       settingsIpcRenderer.emit('env-saved', null, false, (err as Error).message);
     }
+  }
+
+  // Microphone Management Methods
+  private async loadMicrophoneSettings() {
+    console.log('🎤 Loading microphone settings...');
+    this.micHelpText.textContent = 'Scanning for available microphones...';
+    this.updateMicrophoneStatus({ status: 'checking', message: 'Initializing microphone system...' });
+    
+    // Request microphone discovery from main process
+    settingsIpcRenderer.send('discover-microphones');
+  }
+
+  private refreshMicrophones() {
+    console.log('🔄 Refreshing microphones...');
+    this.micHelpText.textContent = 'Scanning for available microphones...';
+    this.updateMicrophoneStatus({ status: 'checking', message: 'Scanning for microphones...' });
+    
+    // Clear current devices (except auto-detect)
+    this.microphoneSelect.innerHTML = '<option value="auto">🤖 Auto-detect (Recommended)</option>';
+    
+    // Request fresh discovery
+    settingsIpcRenderer.send('discover-microphones');
+  }
+
+  private testMicrophone() {
+    console.log('🎙️ Testing microphone...');
+    this.testMicBtn.textContent = '⏸️ Stop Test';
+    this.testMicBtn.disabled = true;
+    this.micTestResult.style.display = 'block';
+    this.micTestStatus.textContent = 'Starting recording test...';
+    this.micTestInfo.textContent = 'Please speak into your microphone for 3 seconds.';
+    
+    this.updateMicrophoneStatus({ status: 'testing', message: 'Recording test in progress...' });
+    
+    // Send test request with current device selection
+    settingsIpcRenderer.send('test-microphone', {
+      device: this.microphoneSelect.value,
+      duration: 3000
+    });
+    
+    // Reset button after timeout
+    setTimeout(() => {
+      this.testMicBtn.textContent = '🎙️ Test Recording';
+      this.testMicBtn.disabled = false;
+    }, 4000);
+  }
+
+  private onMicrophoneDeviceChange() {
+    const selectedDevice = this.microphoneSelect.value;
+    console.log('🔄 Microphone device changed to:', selectedDevice);
+    
+    if (selectedDevice === 'auto') {
+      this.micHelpText.textContent = 'MetaKeyAI will automatically detect the best available microphone.';
+    } else {
+      this.micHelpText.textContent = `Using: ${selectedDevice}`;
+    }
+    
+    // Save the device selection immediately
+    settingsIpcRenderer.send('set-microphone-device', selectedDevice);
+    this.markUnsaved();
+  }
+
+  private populateMicrophoneDevices(data: any) {
+    console.log('🎤 Populating microphone devices:', data);
+    
+    // Clear current devices (except auto-detect)
+    this.microphoneSelect.innerHTML = '<option value="auto">🤖 Auto-detect (Recommended)</option>';
+    
+    // Add discovered devices
+    if (data.discoveredDevices && data.discoveredDevices.length > 0) {
+      data.discoveredDevices.forEach((device: string) => {
+        if (device && device.trim() !== '') {
+          const option = document.createElement('option');
+          option.value = device;
+          option.textContent = `🎤 ${device}`;
+          this.microphoneSelect.appendChild(option);
+        }
+      });
+      
+      this.micHelpText.textContent = `Found ${data.discoveredDevices.length} microphone(s). Select one or use auto-detect.`;
+    } else {
+      this.micHelpText.textContent = 'No specific microphones detected. Auto-detect will use system default.';
+    }
+    
+    // Set current selection
+    if (data.userConfiguredDevice && data.userConfiguredDevice !== 'auto') {
+      this.microphoneSelect.value = data.userConfiguredDevice;
+      this.micHelpText.textContent = `Using: ${data.userConfiguredDevice}`;
+    } else {
+      this.microphoneSelect.value = 'auto';
+      this.micHelpText.textContent = 'MetaKeyAI will automatically detect the best available microphone.';
+    }
+    
+    // Update status based on detection results
+    if (data.needsConfiguration && data.discoveredDevices.length > 1) {
+      this.updateMicrophoneStatus({ 
+        status: 'warning', 
+        message: 'Multiple microphones detected. Consider selecting a specific device.' 
+      });
+    } else {
+      this.updateMicrophoneStatus({ 
+        status: 'connected', 
+        message: `Ready with ${data.currentRecordingMethod || 'unknown'} method` 
+      });
+    }
+  }
+
+  private updateMicrophoneStatus(status: any) {
+    const { status: statusType, message } = status;
+    
+    // Update status display
+    this.micStatus.className = `mic-status ${statusType}`;
+    this.micStatus.querySelector('span')!.textContent = message;
+    
+    // Log for debugging
+    console.log(`🎤 Microphone status: ${statusType} - ${message}`);
+  }
+
+  private showMicrophoneTestResult(result: any) {
+    console.log('📊 Microphone test result:', result);
+    
+    this.micTestResult.style.display = 'block';
+    
+    if (result.success) {
+      this.micTestStatus.textContent = '✅ Test successful! Your microphone is working correctly.';
+      this.micTestInfo.textContent = `Recorded ${result.duration}ms using ${result.method}. File size: ${result.fileSize || 'unknown'} bytes.`;
+      
+      this.updateMicrophoneStatus({ 
+        status: 'connected', 
+        message: 'Microphone test passed!' 
+      });
+    } else {
+      this.micTestStatus.textContent = '❌ Test failed. There may be an issue with your microphone.';
+      this.micTestInfo.textContent = result.error || 'Unknown error occurred during microphone test.';
+      
+      this.updateMicrophoneStatus({ 
+        status: 'disconnected', 
+        message: 'Microphone test failed' 
+      });
+      
+      // Show helpful troubleshooting info
+      if (result.error?.includes('permission')) {
+        this.micTestInfo.textContent += ' Please check microphone permissions.';
+      } else if (result.error?.includes('device')) {
+        this.micTestInfo.textContent += ' Please check that your microphone is connected and not in use by another application.';
+      }
+    }
+    
+    // Auto-hide test result after 10 seconds
+    setTimeout(() => {
+      this.micTestResult.style.display = 'none';
+    }, 10000);
   }
 }
 

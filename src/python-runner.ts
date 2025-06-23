@@ -88,6 +88,49 @@ export class PythonRunner extends EventEmitter {
     }
   }
 
+  private shouldUseUV(): boolean {
+    try {
+      // Check if UV is available
+      const { execSync } = require('child_process');
+      execSync('uv --version', { stdio: 'ignore' });
+      
+      // Check if we have a UV project directory
+      const projectDir = this.getUVProjectDir();
+      if (projectDir && fs.existsSync(path.join(projectDir, 'pyproject.toml'))) {
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  private getUVProjectDir(): string | null {
+    const { app } = require('electron');
+    
+    try {
+      // In production, use the user data directory
+      const userDataPath = app.getPath('userData');
+      const projectDir = path.join(userDataPath, 'python-project');
+      
+      if (fs.existsSync(projectDir)) {
+        return projectDir;
+      }
+      
+      // Fallback to development location
+      const devProjectDir = path.join(__dirname, '..', '..', 'resources');
+      if (fs.existsSync(path.join(devProjectDir, 'pyproject.toml'))) {
+        return devProjectDir;
+      }
+      
+      return null;
+    } catch (error) {
+      console.warn('⚠️ Could not determine UV project directory:', error);
+      return null;
+    }
+  }
+
   async run(options: PythonRunOptions): Promise<PythonResult> {
     const startTime = Date.now();
     console.log('🐍 Running Python with options:', {
@@ -121,8 +164,22 @@ export class PythonRunner extends EventEmitter {
 
         console.log('🔧 Executing Python command:', this.pythonPath, args);
 
+        // Check if we should use UV for execution (for packaged apps with UV environment)
+        let command = this.pythonPath;
+        let commandArgs = args;
+        
+        // Try to use UV if available and we have a project directory
+        if (this.shouldUseUV()) {
+          const projectDir = this.getUVProjectDir();
+          if (projectDir) {
+            command = 'uv';
+            commandArgs = ['run', '--project', projectDir, 'python', ...args];
+            console.log('🔧 Using UV environment:', command, commandArgs.slice(0, 4), '...');
+          }
+        }
+
         // Spawn Python process
-        const pythonProcess = spawn(this.pythonPath, args, {
+        const pythonProcess = spawn(command, commandArgs, {
           cwd: options.cwd || process.cwd(),
           env: { ...process.env, ...options.env },
           stdio: ['pipe', 'pipe', 'pipe']

@@ -2,6 +2,7 @@ import { globalShortcut } from 'electron';
 import { ipcMain } from 'electron';
 import fs from 'fs';
 import path from 'path';
+import { UserDataManager } from './user-data-manager';
 
 export interface ShortcutConfig {
   id: string;
@@ -16,11 +17,11 @@ export interface ShortcutConfig {
 export class ShortcutsManager {
   private static instance: ShortcutsManager | null = null;
   private shortcuts: Map<string, ShortcutConfig> = new Map();
-  private configPath: string;
+  private userDataManager: UserDataManager;
   private isInitialized = false;
 
   private constructor() {
-    this.configPath = path.join(__dirname, 'shortcuts_config.json');
+    this.userDataManager = UserDataManager.getInstance();
     this.setupIpcHandlers();
   }
 
@@ -198,15 +199,14 @@ export class ShortcutsManager {
 
   private async loadShortcuts(): Promise<void> {
     try {
-      if (fs.existsSync(this.configPath)) {
-        const data = fs.readFileSync(this.configPath, 'utf8');
-        const savedShortcuts = JSON.parse(data);
-        
+      const savedShortcuts = this.userDataManager.loadShortcutsSettings();
+      
+      if (savedShortcuts && Array.isArray(savedShortcuts)) {
         for (const shortcut of savedShortcuts) {
           this.shortcuts.set(shortcut.id, shortcut);
         }
         
-        console.log('📖 Loaded shortcuts configuration');
+        console.log('📖 Loaded shortcuts configuration from user data directory');
       }
     } catch (error) {
       console.warn('⚠️ Could not load shortcuts configuration:', error);
@@ -224,7 +224,7 @@ export class ShortcutsManager {
         category: shortcut.category
       }));
       
-      fs.writeFileSync(this.configPath, JSON.stringify(shortcutsArray, null, 2));
+      this.userDataManager.saveShortcutsSettings(shortcutsArray);
       console.log('💾 Saved shortcuts configuration');
     } catch (error) {
       console.error('❌ Failed to save shortcuts configuration:', error);

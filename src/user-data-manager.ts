@@ -146,6 +146,35 @@ export class UserDataManager {
     }
   }
 
+  // Shortcuts Management
+  public getShortcutsSettingsPath(): string {
+    return path.join(this.settingsDir, 'shortcuts.json');
+  }
+
+  public saveShortcutsSettings(shortcuts: any): void {
+    try {
+      const shortcutsPath = this.getShortcutsSettingsPath();
+      fs.writeFileSync(shortcutsPath, JSON.stringify(shortcuts, null, 2));
+      console.log(`⌨️ Shortcuts settings saved to: ${shortcutsPath}`);
+    } catch (error) {
+      console.error('❌ Failed to save shortcuts settings:', error);
+    }
+  }
+
+  public loadShortcutsSettings(): any {
+    try {
+      const shortcutsPath = this.getShortcutsSettingsPath();
+      if (fs.existsSync(shortcutsPath)) {
+        const data = fs.readFileSync(shortcutsPath, 'utf8');
+        return JSON.parse(data);
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to load shortcuts settings:', error);
+      return null;
+    }
+  }
+
   // Cache Management
   public getCacheDir(): string {
     return this.cacheDir;
@@ -178,6 +207,7 @@ export class UserDataManager {
       exists: {
         spellBook: fs.existsSync(this.getSpellBookPath()),
         audioSettings: fs.existsSync(this.getAudioSettingsPath()),
+        shortcutsSettings: fs.existsSync(this.getShortcutsSettingsPath()),
         pythonEnv: fs.existsSync(this.getPythonEnvDir())
       }
     };

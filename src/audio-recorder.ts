@@ -6,6 +6,7 @@ import * as os from 'os';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { app } from 'electron';
+import { UserDataManager } from './user-data-manager';
 
 // Extend EventEmitter to handle events
 export class AudioRecorder extends EventEmitter {
@@ -15,10 +16,44 @@ export class AudioRecorder extends EventEmitter {
   private isInitialized: boolean = false;
   public isRecording = false;
   private fallbackMethod: 'sox' | 'powershell' | 'ffmpeg' | 'none' = 'none';
+  private userDataManager: UserDataManager;
+  private audioSettings: any = null;
 
   constructor() {
     super();
+    this.userDataManager = UserDataManager.getInstance();
+    this.loadAudioSettings();
     this.initializeRecordingMethod();
+  }
+
+  private loadAudioSettings(): void {
+    this.audioSettings = this.userDataManager.loadAudioSettings();
+    if (this.audioSettings) {
+      console.log('🎤 Loaded user audio settings:', this.audioSettings);
+    }
+  }
+
+  private saveAudioSettings(): void {
+    if (this.audioSettings) {
+      this.userDataManager.saveAudioSettings(this.audioSettings);
+    }
+  }
+
+  public setUserAudioDevice(deviceName: string): void {
+    if (!this.audioSettings) {
+      this.audioSettings = {};
+    }
+    this.audioSettings.preferredDevice = deviceName;
+    this.audioSettings.platform = process.platform;
+    this.saveAudioSettings();
+    console.log(`🎤 User set preferred audio device: ${deviceName}`);
+  }
+
+  public getUserAudioDevice(): string | null {
+    if (this.audioSettings && this.audioSettings.platform === process.platform) {
+      return this.audioSettings.preferredDevice || null;
+    }
+    return null;
   }
 
   private async initializeRecordingMethod(): Promise<void> {
@@ -324,6 +359,26 @@ export class AudioRecorder extends EventEmitter {
   }
 
   private async getAudioDevice(): Promise<string> {
+    // First, check if user has configured a device
+    const userDevice = this.getUserAudioDevice();
+    if (userDevice) {
+      console.log(`🎤 Using user-configured device: ${userDevice}`);
+      
+      // Test if the user device still works
+      if (process.platform === 'win32') {
+        try {
+          await this.runCommand('ffmpeg', ['-f', 'dshow', '-i', `audio="${userDevice}"`, '-t', '0.1', '-f', 'null', '-'], 3000);
+          return userDevice;
+        } catch (error) {
+          console.log(`⚠️ User-configured device "${userDevice}" no longer works, falling back to detection`);
+          // Continue to auto-detection
+        }
+      } else {
+        return userDevice; // For Unix systems, trust user configuration
+      }
+    }
+
+    // Fall back to automatic detection
     if (process.platform === 'win32') {
       return this.getWindowsAudioDevice();
     } else if (process.platform === 'darwin') {
@@ -351,12 +406,22 @@ export class AudioRecorder extends EventEmitter {
         if (inAudioSection && line.includes('DirectShow video devices')) {
           break;
         }
-        if (inAudioSection && line.includes('"')) {
-          // Extract device name from line like: [dshow @ 000...] "Microphone Array (Realtek Audio)"
+        if (inAudioSection && line.includes('"') && !line.includes('Alternative name')) {
+          // Extract device name from line like: [dshow @ 000...] "Microphone (Realtek(R) Audio)"
           const match = line.match(/"([^"]+)"/);
           if (match) {
-            console.log(`🎤 Found Windows audio device: ${match[1]}`);
-            return match[1];
+            const deviceName = match[1];
+            console.log(`🎤 Found Windows audio device: ${deviceName}`);
+            
+            // Test if this device works with a quick test
+            try {
+              await this.runCommand('ffmpeg', ['-f', 'dshow', '-i', `audio="${deviceName}"`, '-t', '0.1', '-f', 'null', '-'], 3000);
+              console.log(`🎤 Verified Windows audio device: ${deviceName}`);
+              return deviceName;
+            } catch (testError) {
+              console.log(`⚠️ Device test failed for ${deviceName}:`, testError.message);
+              // Continue to try other devices or fallbacks
+            }
           }
         }
       }
@@ -366,14 +431,15 @@ export class AudioRecorder extends EventEmitter {
         'Microphone',
         'Microphone Array', 
         'Built-in Microphone',
-        'Internal Microphone'
+        'Internal Microphone',
+        'Default'
       ];
       
       for (const name of commonNames) {
         try {
           // Test if this device name works with a 0.1 second test recording
           await this.runCommand('ffmpeg', ['-f', 'dshow', '-i', `audio="${name}"`, '-t', '0.1', '-f', 'null', '-'], 3000);
-          console.log(`🎤 Verified Windows audio device: ${name}`);
+          console.log(`🎤 Verified Windows fallback device: ${name}`);
           return name;
         } catch (e) {
           // Continue to next name
@@ -383,7 +449,8 @@ export class AudioRecorder extends EventEmitter {
       throw new Error('No working audio device found');
     } catch (error) {
       console.log('⚠️ Could not enumerate Windows audio devices:', error.message);
-      return ''; // Use empty string for default device
+      // Return empty string as last resort - will trigger user selection
+      return '';
     }
   }
 
@@ -594,5 +661,110 @@ export class AudioRecorder extends EventEmitter {
     this.isInitialized = false;
     this.fallbackMethod = 'none';
     await this.initializeRecordingMethod();
+  }
+
+  public async discoverAudioDevices(): Promise<string[]> {
+    const devices: string[] = [];
+    
+    try {
+      if (process.platform === 'win32') {
+        // Discover Windows DirectShow devices
+        const result = await this.runCommand('ffmpeg', ['-list_devices', 'true', '-f', 'dshow', '-i', 'dummy'], 5000);
+        const output = result.stderr;
+        
+        const lines = output.split('\n');
+        let inAudioSection = false;
+        
+        for (const line of lines) {
+          if (line.includes('DirectShow audio devices')) {
+            inAudioSection = true;
+            continue;
+          }
+          if (inAudioSection && line.includes('DirectShow video devices')) {
+            break;
+          }
+          if (inAudioSection && line.includes('"') && !line.includes('Alternative name')) {
+            const match = line.match(/"([^"]+)"/);
+            if (match) {
+              devices.push(match[1]);
+            }
+          }
+        }
+      } else if (process.platform === 'darwin') {
+        // Discover macOS AVFoundation devices
+        const result = await this.runCommand('ffmpeg', ['-f', 'avfoundation', '-list_devices', 'true', '-i', ''], 3000);
+        const output = result.stderr;
+        
+        const lines = output.split('\n');
+        for (const line of lines) {
+          if (line.includes('AVFoundation audio devices') || line.includes('[AVFoundation input device @')) {
+            const match = line.match(/\[(\d+)\].*?([^[]+)$/);
+            if (match) {
+              devices.push(`${match[2].trim()} (Index: ${match[1]})`);
+            }
+          }
+        }
+      } else {
+        // Linux: discover ALSA/PulseAudio devices
+        try {
+          const alsaResult = await this.runCommand('arecord', ['-l'], 3000);
+          const alsaOutput = alsaResult.stdout;
+          
+          // Parse ALSA device list
+          const lines = alsaOutput.split('\n');
+          for (const line of lines) {
+            if (line.includes('card') && line.includes('device')) {
+              const match = line.match(/card (\d+):.*?\[([^\]]+)\]/);
+              if (match) {
+                devices.push(`${match[2]} (ALSA: hw:${match[1]})`);
+              }
+            }
+          }
+        } catch (e) {
+          // ALSA not available, try PulseAudio
+          try {
+            const paResult = await this.runCommand('pactl', ['list', 'sources', 'short'], 3000);
+            const paOutput = paResult.stdout;
+            
+            const lines = paOutput.split('\n');
+            for (const line of lines) {
+              if (line.trim() && !line.includes('monitor')) {
+                const parts = line.split('\t');
+                if (parts.length >= 2) {
+                  devices.push(`${parts[1]} (PulseAudio)`);
+                }
+              }
+            }
+          } catch (e2) {
+            devices.push('default (System Default)');
+          }
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ Could not discover audio devices:', error.message);
+    }
+    
+    // Always add a default option
+    if (devices.length === 0) {
+      devices.push('default (System Default)');
+    }
+    
+    console.log(`🎤 Discovered ${devices.length} audio devices:`, devices);
+    return devices;
+  }
+
+  public async getAudioDeviceInfo(): Promise<any> {
+    const discoveredDevices = await this.discoverAudioDevices();
+    const userDevice = this.getUserAudioDevice();
+    const currentMethod = this.fallbackMethod;
+    
+    return {
+      discoveredDevices,
+      userConfiguredDevice: userDevice,
+      currentRecordingMethod: currentMethod,
+      platform: process.platform,
+      canUserConfigure: true,
+      needsConfiguration: !userDevice && discoveredDevices.length > 1
+    };
   }
 } 

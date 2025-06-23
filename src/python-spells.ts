@@ -4,6 +4,7 @@ import { ipcMain, BrowserWindow, globalShortcut, app, clipboard, Notification } 
 import path from 'path';
 import fs from 'fs';
 import { PythonEnvironmentManager } from './python-env-manager';
+import { UserDataManager } from './user-data-manager';
 
 export interface PythonSpell {
   id: string;
@@ -43,14 +44,14 @@ export class PythonSpellCaster {
   private pythonDaemon: PythonDaemon | null = null;
   private spellBook: Map<string, PythonSpell> = new Map();
   private quickSlots: (PythonSpell | null)[] = new Array(9).fill(null);
-  private spellBookPath: string;
+  private userDataManager: UserDataManager;
   private isInitialized = false;
   private loadedSpells: Set<string> = new Set(); // Track what's loaded in Python process
   private pythonEnvManager: PythonEnvironmentManager;
 
   constructor() {
     this.pythonRunner = new PythonRunner();
-    this.spellBookPath = path.join(__dirname, 'spell_book.json');
+    this.userDataManager = UserDataManager.getInstance();
     this.pythonEnvManager = new PythonEnvironmentManager();
     this.setupIpcHandlers();
   }
@@ -678,10 +679,9 @@ export class PythonSpellCaster {
 
   private async loadSpellBook(): Promise<void> {
     try {
-      if (fs.existsSync(this.spellBookPath)) {
-        const data = fs.readFileSync(this.spellBookPath, 'utf8');
-        const savedData = JSON.parse(data);
-        
+      const savedData = this.userDataManager.loadSpellBook();
+      
+      if (savedData) {
         // Load custom spells
         if (savedData.spells) {
           for (const spell of savedData.spells) {
@@ -694,7 +694,7 @@ export class PythonSpellCaster {
           this.quickSlots = savedData.quickSlots;
         }
         
-        console.log('📖 Loaded spell book from disk');
+        console.log('📖 Loaded spell book from centralized storage');
       }
     } catch (error) {
       console.warn('⚠️ Could not load spell book:', error);
@@ -708,8 +708,7 @@ export class PythonSpellCaster {
         quickSlots: this.quickSlots,
       };
 
-      fs.writeFileSync(this.spellBookPath, JSON.stringify(data, null, 2));
-      console.log('💾 Saved spell book to disk');
+      this.userDataManager.saveSpellBook(data);
     } catch (error) {
       console.error('❌ Failed to save spell book:', error);
     }

@@ -10,7 +10,7 @@ export interface ShortcutConfig {
   description: string;
   defaultKey: string;
   currentKey: string;
-  category: 'clipboard' | 'ai' | 'voice' | 'spells' | 'navigation';
+  category: 'clipboard' | 'ai' | 'voice' | 'spells' | 'navigation' | 'system';
   handler: () => void | Promise<void>;
 }
 
@@ -153,6 +153,16 @@ export class ShortcutsManager {
         defaultKey: 'CommandOrControl+Alt+T',
         currentKey: 'CommandOrControl+Alt+T',
         category: 'spells'
+      },
+      
+      // Application Control
+      {
+        id: 'app-quit',
+        name: 'Quit MetaKeyAI',
+        description: 'Completely shutdown MetaKeyAI application',
+        defaultKey: 'CommandOrControl+Alt+Shift+Q',
+        currentKey: 'CommandOrControl+Alt+Shift+Q',
+        category: 'system'
       }
     ];
 

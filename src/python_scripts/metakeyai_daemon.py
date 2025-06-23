@@ -110,6 +110,9 @@ def _configure_llm_from_env():
         return
         
     model_name = os.getenv("METAKEYAI_LLM")
+    log(f"Configuring DSPy default LLM from environment: {model_name}")
+    log(f"DSPy version: {dspy.__version__}")
+    log(f"DSPy settings: {dspy}")
     if model_name:
         try:
             dspy.configure(lm=dspy.LM(model_name))

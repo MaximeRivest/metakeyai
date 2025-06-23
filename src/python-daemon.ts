@@ -320,8 +320,41 @@ build-backend = "hatchling.build"
   async stop(): Promise<void> {
     if (this.process) {
       console.log('🛑 Stopping Python daemon...');
-      this.process.kill();
+      
+      // Try graceful shutdown first
+      try {
+        this.process.kill('SIGTERM');
+        
+        // Wait up to 3 seconds for graceful shutdown
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => {
+            console.log('⏰ Graceful shutdown timeout, forcing kill...');
+            if (this.process && !this.process.killed) {
+              this.process.kill('SIGKILL');
+            }
+            resolve();
+          }, 3000);
+          
+          if (this.process) {
+            this.process.on('exit', () => {
+              clearTimeout(timeout);
+              resolve();
+            });
+          } else {
+            clearTimeout(timeout);
+            resolve();
+          }
+        });
+      } catch (error) {
+        console.warn('⚠️ Error during Python daemon shutdown:', error);
+        // Force kill if graceful shutdown failed
+        if (this.process && !this.process.killed) {
+          this.process.kill('SIGKILL');
+        }
+      }
+      
       this.process = null;
+      this.ready = false;
       console.log('✅ Python daemon stopped');
     }
   }

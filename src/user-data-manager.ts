@@ -175,6 +175,59 @@ export class UserDataManager {
     }
   }
 
+  // Model Configuration Management
+  public getModelConfigPath(): string {
+    return path.join(this.settingsDir, 'model-config.json');
+  }
+
+  public saveModelConfig(config: { env: Record<string, string>; llm: string; llms?: string[] }): void {
+    try {
+      const configPath = this.getModelConfigPath();
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+      console.log(`🤖 Model configuration saved to: ${configPath}`);
+    } catch (error) {
+      console.error('❌ Failed to save model configuration:', error);
+      throw error;
+    }
+  }
+
+  public loadModelConfig(): { env: Record<string, string>; llm: string; llms?: string[] } | null {
+    try {
+      const configPath = this.getModelConfigPath();
+      if (fs.existsSync(configPath)) {
+        const data = fs.readFileSync(configPath, 'utf8');
+        return JSON.parse(data);
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to load model configuration:', error);
+      return null;
+    }
+  }
+
+  public migrateOldModelConfig(oldConfigPath: string): boolean {
+    try {
+      if (fs.existsSync(oldConfigPath)) {
+        console.log('🔄 Migrating old model configuration from:', oldConfigPath);
+        const oldData = JSON.parse(fs.readFileSync(oldConfigPath, 'utf8'));
+        this.saveModelConfig(oldData);
+        
+        // Create backup of old file before removing
+        const backupPath = oldConfigPath + '.backup';
+        fs.copyFileSync(oldConfigPath, backupPath);
+        fs.unlinkSync(oldConfigPath);
+        
+        console.log('✅ Model configuration migrated successfully');
+        console.log('📦 Old file backed up to:', backupPath);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('❌ Failed to migrate old model configuration:', error);
+      return false;
+    }
+  }
+
   // Cache Management
   public getCacheDir(): string {
     return this.cacheDir;
@@ -208,6 +261,7 @@ export class UserDataManager {
         spellBook: fs.existsSync(this.getSpellBookPath()),
         audioSettings: fs.existsSync(this.getAudioSettingsPath()),
         shortcutsSettings: fs.existsSync(this.getShortcutsSettingsPath()),
+        modelConfig: fs.existsSync(this.getModelConfigPath()),
         pythonEnv: fs.existsSync(this.getPythonEnvDir())
       }
     };

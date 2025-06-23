@@ -886,12 +886,12 @@ class SettingsRenderer {
             // Try to validate the blob by reading it
             this.debugAudioBlob(blob, audioUrl).then(blobInfo => {
                 console.log('🎙️ Step 6: Blob validation SUCCESS:', blobInfo);
-                
-                this.showMicrophoneTestResult({
-                    success: true,
-                    duration: 3000,
-                    method: 'web-audio',
-                    fileSize: blob.size,
+            
+            this.showMicrophoneTestResult({
+                success: true,
+                duration: 3000,
+                method: 'web-audio',
+                fileSize: blob.size,
                     audioUrl: audioUrl,
                     mimeType: blob.type,
                     blobInfo: blobInfo

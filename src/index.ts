@@ -40,26 +40,45 @@ let shortcutsManager: ShortcutsManager | null = null;
 let userDataManager: UserDataManager | null = null;
 let spellCaster: PythonSpellCaster | null = null;
 
-// Persistent env config path and helpers
-const ENV_CONFIG_PATH = path.join(app.getPath('userData'), 'env_config.json');
-
+// Model configuration interface
 interface EnvConfigFile { env: Record<string,string>; llm: string; llms?: string[]; }
+
+// Legacy config path for migration
+const LEGACY_ENV_CONFIG_PATH = path.join(app.getPath('userData'), 'env_config.json');
 
 function readEnvConfig(): EnvConfigFile {
   try {
-    if (fs.existsSync(ENV_CONFIG_PATH)) {
-      return JSON.parse(fs.readFileSync(ENV_CONFIG_PATH, 'utf-8')) as EnvConfigFile;
+    if (!userDataManager) {
+      userDataManager = UserDataManager.getInstance();
     }
-  } catch {}
+    
+    // Try to migrate from old location first
+    if (fs.existsSync(LEGACY_ENV_CONFIG_PATH)) {
+      const migrated = userDataManager.migrateOldModelConfig(LEGACY_ENV_CONFIG_PATH);
+      if (migrated) {
+        console.log('🔄 Migrated model configuration to new location');
+      }
+    }
+    
+    // Load from new location
+    const config = userDataManager.loadModelConfig();
+    if (config) {
+      return config;
+    }
+  } catch (error) {
+    console.error('❌ Failed to load model config:', error);
+  }
   return { env: {}, llm: '', llms: [] };
 }
 
 function writeEnvConfig(data: EnvConfigFile) {
   try {
-    fs.mkdirSync(path.dirname(ENV_CONFIG_PATH), { recursive: true });
-    fs.writeFileSync(ENV_CONFIG_PATH, JSON.stringify(data, null, 2), 'utf-8');
+    if (!userDataManager) {
+      userDataManager = UserDataManager.getInstance();
+    }
+    userDataManager.saveModelConfig(data);
   } catch (err) {
-    console.error('❌ Failed to persist env config', err);
+    console.error('❌ Failed to persist model config', err);
   }
 }
 
@@ -265,7 +284,15 @@ const handleClipboardPrevious = () => {
 
 const handleShowClipboard = () => {
   console.log('👁️ handleShowClipboard triggered!');
-  showPastille(); // Show current clipboard state
+  
+  // Toggle behavior: if pastille is already visible, hide it
+  if (pastilleWindow && pastilleWindow.isVisible()) {
+    console.log('👁️ Pastille already visible - hiding it');
+    pastilleWindow.hide();
+  } else {
+    console.log('👁️ Pastille not visible - showing it');
+    showPastille(); // Show current clipboard state
+  }
 };
 
 const showPastille = () => {
@@ -692,27 +719,119 @@ const openSpellBookWindow = () => {
 // Since there are no windows, we don't need to handle 'window-all-closed'
 // The app will continue running in the background.
 
-app.on('will-quit', () => {
-  // Cleanup shortcuts manager
-  if (shortcutsManager) {
-    shortcutsManager.cleanup();
-    shortcutsManager = null;
+// Centralized cleanup function
+async function cleanupApplication(): Promise<void> {
+  console.log('🧹 Starting application cleanup...');
+  
+  try {
+    // Cleanup Python daemon FIRST (most important)
+    console.log('🐍 Stopping Python daemon...');
+    const daemon = await PythonDaemon.getInstance().catch(() => null);
+    if (daemon) {
+      await daemon.stop();
+      console.log('✅ Python daemon stopped');
+    }
+  } catch (error) {
+    console.error('❌ Error stopping Python daemon:', error);
   }
   
-  // Cleanup clipboard history
-  if (clipboardHistory) {
-    clipboardHistory.destroy();
-    clipboardHistory = null;
+  try {
+    // Cleanup shortcuts manager
+    if (shortcutsManager) {
+      shortcutsManager.cleanup();
+      shortcutsManager = null;
+      console.log('✅ Shortcuts manager cleaned up');
+    }
+  } catch (error) {
+    console.error('❌ Error cleaning up shortcuts manager:', error);
   }
   
-  // Cleanup audio player
-  if (audioPlayer) {
-    audioPlayer.stop();
-    audioPlayer = null;
+  try {
+    // Cleanup clipboard history
+    if (clipboardHistory) {
+      clipboardHistory.destroy();
+      clipboardHistory = null;
+      console.log('✅ Clipboard history cleaned up');
+    }
+  } catch (error) {
+    console.error('❌ Error cleaning up clipboard history:', error);
   }
   
-  // Cleanup Python Spell Caster
-  spellCaster?.cleanup();
+  try {
+    // Cleanup audio components
+    if (audioPlayer) {
+      audioPlayer.stop();
+      audioPlayer = null;
+      console.log('✅ Audio player cleaned up');
+    }
+    
+    if (recorder) {
+      // Stop any ongoing recording
+      if (recorder.isRecording) {
+        recorder.stop();
+      }
+      recorder = null;
+      console.log('✅ Audio recorder cleaned up');
+    }
+  } catch (error) {
+    console.error('❌ Error cleaning up audio components:', error);
+  }
+  
+  try {
+    // Cleanup Python Spell Caster
+    if (spellCaster) {
+      spellCaster.cleanup();
+      spellCaster = null;
+      console.log('✅ Python spell caster cleaned up');
+    }
+  } catch (error) {
+    console.error('❌ Error cleaning up spell caster:', error);
+  }
+  
+  try {
+    // Unregister all global shortcuts
+    globalShortcut.unregisterAll();
+    console.log('✅ Global shortcuts unregistered');
+  } catch (error) {
+    console.error('❌ Error unregistering shortcuts:', error);
+  }
+  
+  console.log('🧹 Application cleanup completed');
+}
+
+// Handle app shutdown events
+app.on('will-quit', async (event) => {
+  // Prevent immediate quit to allow cleanup
+  event.preventDefault();
+  console.log('🛑 App will quit - starting cleanup...');
+  
+  try {
+    await cleanupApplication();
+  } catch (error) {
+    console.error('❌ Error during cleanup:', error);
+  } finally {
+    // Force quit after cleanup
+    app.exit(0);
+  }
+});
+
+// Handle Windows-specific shutdown events
+app.on('before-quit', async (event) => {
+  console.log('🛑 Before quit event triggered');
+  // The cleanup will be handled in will-quit
+});
+
+// Handle session end (Windows logout, restart, etc.)
+process.on('SIGTERM', async () => {
+  console.log('🛑 SIGTERM received - shutting down gracefully...');
+  await cleanupApplication();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('🛑 SIGINT received - shutting down gracefully...');
+  await cleanupApplication();
+  process.exit(0);
 });
 
 // In this file you can include the rest of your app's specific main process
@@ -1018,8 +1137,10 @@ async function generateDebugReport() {
     files: {
       logFile: logger.getLogPath(),
       logDirectory: logger.getLogDirectory(),
-      configExists: fs.existsSync(ENV_CONFIG_PATH),
-      configPath: ENV_CONFIG_PATH
+      configExists: userDataManager ? fs.existsSync(userDataManager.getModelConfigPath()) : false,
+      configPath: userDataManager ? userDataManager.getModelConfigPath() : 'N/A',
+      legacyConfigExists: fs.existsSync(LEGACY_ENV_CONFIG_PATH),
+      legacyConfigPath: LEGACY_ENV_CONFIG_PATH
     },
     components: {
       recorder: !!recorder,
@@ -1043,6 +1164,23 @@ async function generateDebugReport() {
 }
 
 async function initializeApp() {
+  // Initialize user data manager first
+  console.log('📁 Initializing user data manager...');
+  userDataManager = UserDataManager.getInstance();
+  console.log('✅ User data manager initialized');
+  
+  // Migrate model configuration if needed
+  try {
+    if (fs.existsSync(LEGACY_ENV_CONFIG_PATH)) {
+      const migrated = userDataManager.migrateOldModelConfig(LEGACY_ENV_CONFIG_PATH);
+      if (migrated) {
+        console.log('🔄 Model configuration migrated to new location');
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Model configuration migration failed:', error);
+  }
+  
   console.log('📋 Initializing clipboard history...');
   clipboardHistory = new ClipboardHistory(50);
   
@@ -1113,14 +1251,29 @@ async function initializeApp() {
   tray = new Tray(image);
   
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Exit', type: 'normal', click: () => app.quit() },
+    { label: 'Settings', type: 'normal', click: openSettingsWindow },
+    { label: 'Spell Book', type: 'normal', click: openSpellBookWindow },
+    { type: 'separator' },
+    { label: 'Hide All Windows', type: 'normal', click: () => {
+        if (pastilleWindow?.isVisible()) pastilleWindow.hide();
+        if (settingsWindow?.isVisible()) settingsWindow.hide();
+        if (spellBookWindow?.isVisible()) spellBookWindow.hide();
+        console.log('👁️ All windows hidden');
+      }
+    },
+    { type: 'separator' },
+    { label: 'Quit MetaKeyAI', type: 'normal', accelerator: 'CommandOrControl+Alt+Shift+Q', click: async () => {
+        console.log('🛑 Quit requested from tray menu');
+        app.quit();
+      }
+    },
   ]);
 
   tray.setToolTip('MetaKeyAI');
   tray.setContextMenu(contextMenu);
   console.log('✅ Tray created');
   
-  showPillNotification('MetaKeyAI running in background\nCtrl+Alt+Q: Quick edit\nCtrl+Alt+W: Voice record\nCtrl+Alt+E: Text-to-speech\nCtrl+Alt+C: Show clipboard\nCtrl+Alt+←/→/Num-/Num/: Navigate clipboard\nCustomize shortcuts in Settings!');
+  showPillNotification('MetaKeyAI running in background\nCtrl+Alt+Q: Quick edit\nCtrl+Alt+W: Voice record\nCtrl+Alt+E: Text-to-speech\nCtrl+Alt+C: Show/hide clipboard\nCtrl+Alt+←/→: Navigate clipboard\nCtrl+Alt+Shift+Q: Quit app\nCustomize shortcuts in Settings!');
 
   if (!config.OPENAI_API_KEY) {
     console.log('⚠️ No OpenAI API key found in config');
@@ -1246,6 +1399,15 @@ async function initializeApp() {
         console.warn('⚠️ Quick spell slot 9:', (error as Error).message);
         showPillNotification('No spell assigned to slot 9');
       }
+    },
+    // Application control
+    'app-quit': async () => {
+      console.log('🛑 App quit shortcut triggered');
+      showPillNotification('MetaKeyAI shutting down...');
+      // Give user a moment to see the message
+      setTimeout(() => {
+        app.quit();
+      }, 1000);
     },
   };
   

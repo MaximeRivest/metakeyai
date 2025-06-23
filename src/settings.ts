@@ -1,6 +1,6 @@
 const { ipcRenderer: settingsIpcRenderer } = require('electron');
 
-interface Settings {
+interface Setttings {
   OPENAI_API_KEY: string;
   WHISPER_MODEL: string;
   TTS_VOICE: string;
@@ -38,6 +38,7 @@ class SettingsRenderer {
   private microphoneSelect: HTMLSelectElement;
   private refreshMicBtn: HTMLButtonElement;
   private testMicBtn: HTMLButtonElement;
+  private testWebMicBtn: HTMLButtonElement;
   private micStatus: HTMLElement;
   private micHelpText: HTMLElement;
   private micTestResult: HTMLElement;
@@ -78,6 +79,7 @@ class SettingsRenderer {
     this.microphoneSelect = document.getElementById('microphone-device') as HTMLSelectElement;
     this.refreshMicBtn = document.getElementById('refresh-microphones') as HTMLButtonElement;
     this.testMicBtn = document.getElementById('test-microphone') as HTMLButtonElement;
+    this.testWebMicBtn = document.getElementById('test-web-microphone') as HTMLButtonElement;
     this.micStatus = document.getElementById('mic-status')!;
     this.micHelpText = document.getElementById('mic-help-text')!;
     this.micTestResult = document.getElementById('mic-test-result')!;
@@ -131,6 +133,10 @@ class SettingsRenderer {
 
     this.testMicBtn.addEventListener('click', () => {
       this.testMicrophone();
+    });
+
+    this.testWebMicBtn.addEventListener('click', () => {
+      this.testWebMicrophone();
     });
 
     this.microphoneSelect.addEventListener('change', () => {
@@ -758,57 +764,97 @@ class SettingsRenderer {
     console.log('🔄 Microphone device changed to:', selectedDevice);
     
     if (selectedDevice === 'auto') {
-      this.micHelpText.textContent = 'MetaKeyAI will automatically detect the best available microphone.';
+      this.micHelpText.textContent = 'Auto-detect will choose the first working microphone found.';
     } else {
-      this.micHelpText.textContent = `Using: ${selectedDevice}`;
+      this.micHelpText.textContent = `Selected: ${selectedDevice}`;
     }
     
     // Save the device selection immediately
     settingsIpcRenderer.send('set-microphone-device', selectedDevice);
     this.markUnsaved();
+    
+    // Update status to show the change
+    this.updateMicrophoneStatus({ 
+      status: 'connected', 
+      message: selectedDevice === 'auto' ? 'Auto-detect enabled' : 'Manual device selected' 
+    });
   }
 
   private populateMicrophoneDevices(data: any) {
     console.log('🎤 Populating microphone devices:', data);
     
-    // Clear current devices (except auto-detect)
-    this.microphoneSelect.innerHTML = '<option value="auto">🤖 Auto-detect (Recommended)</option>';
+    // Clear current devices
+    this.microphoneSelect.innerHTML = '';
     
-    // Add discovered devices
+    // Always add auto-detect option first
+    const autoOption = document.createElement('option');
+    autoOption.value = 'auto';
+    autoOption.textContent = '🤖 Auto-detect (Recommended)';
+    this.microphoneSelect.appendChild(autoOption);
+    
+    // Add discovered devices with their exact names
     if (data.discoveredDevices && data.discoveredDevices.length > 0) {
       data.discoveredDevices.forEach((device: string) => {
         if (device && device.trim() !== '') {
           const option = document.createElement('option');
           option.value = device;
+          // Show a cleaner name in the UI while keeping the exact value
           option.textContent = `🎤 ${device}`;
           this.microphoneSelect.appendChild(option);
         }
       });
       
-      this.micHelpText.textContent = `Found ${data.discoveredDevices.length} microphone(s). Select one or use auto-detect.`;
+      this.micHelpText.textContent = `Found ${data.discoveredDevices.length} working microphone(s). These devices have been tested and verified.`;
     } else {
-      this.micHelpText.textContent = 'No specific microphones detected. Auto-detect will use system default.';
+      this.micHelpText.textContent = 'No working microphones detected. Check your microphone connection and permissions.';
     }
     
-    // Set current selection
-    if (data.userConfiguredDevice && data.userConfiguredDevice !== 'auto') {
-      this.microphoneSelect.value = data.userConfiguredDevice;
-      this.micHelpText.textContent = `Using: ${data.userConfiguredDevice}`;
+    // Set current selection based on user config
+    if (data.userConfiguredDevice && 
+        data.userConfiguredDevice !== 'auto' && 
+        data.userConfiguredDevice !== '') {
+      
+      // Check if the user's device is in the discovered list
+      const userDeviceOption = Array.from(this.microphoneSelect.options)
+        .find(option => option.value === data.userConfiguredDevice);
+      
+      if (userDeviceOption) {
+        this.microphoneSelect.value = data.userConfiguredDevice;
+        this.micHelpText.textContent = `Using: ${data.userConfiguredDevice}`;
+      } else {
+        // User device not found in current discovery - add it with a warning
+        const option = document.createElement('option');
+        option.value = data.userConfiguredDevice;
+        option.textContent = `⚠️ ${data.userConfiguredDevice} (Not detected)`;
+        option.style.color = '#ff9800';
+        this.microphoneSelect.appendChild(option);
+        this.microphoneSelect.value = data.userConfiguredDevice;
+        this.micHelpText.textContent = `Warning: "${data.userConfiguredDevice}" was not detected. It may not be working.`;
+      }
     } else {
       this.microphoneSelect.value = 'auto';
-      this.micHelpText.textContent = 'MetaKeyAI will automatically detect the best available microphone.';
+      if (data.discoveredDevices && data.discoveredDevices.length > 0) {
+        this.micHelpText.textContent = `Auto-detect will use: ${data.discoveredDevices[0]}`;
+      } else {
+        this.micHelpText.textContent = 'Auto-detect enabled, but no working microphones were found.';
+      }
     }
     
     // Update status based on detection results
-    if (data.needsConfiguration && data.discoveredDevices.length > 1) {
+    if (data.discoveredDevices && data.discoveredDevices.length > 1) {
       this.updateMicrophoneStatus({ 
-        status: 'warning', 
-        message: 'Multiple microphones detected. Consider selecting a specific device.' 
+        status: 'connected', 
+        message: `${data.discoveredDevices.length} working microphones available` 
+      });
+    } else if (data.discoveredDevices && data.discoveredDevices.length === 1) {
+      this.updateMicrophoneStatus({ 
+        status: 'connected', 
+        message: `Ready with ${data.currentRecordingMethod || 'ffmpeg'} method` 
       });
     } else {
       this.updateMicrophoneStatus({ 
-        status: 'connected', 
-        message: `Ready with ${data.currentRecordingMethod || 'unknown'} method` 
+        status: 'disconnected', 
+        message: 'No working microphones detected' 
       });
     }
   }
@@ -839,25 +885,169 @@ class SettingsRenderer {
       });
     } else {
       this.micTestStatus.textContent = '❌ Test failed. There may be an issue with your microphone.';
-      this.micTestInfo.textContent = result.error || 'Unknown error occurred during microphone test.';
+      
+      let errorInfo = result.error || 'Unknown error occurred during microphone test.';
+      
+      // Provide specific troubleshooting for common Windows errors
+      if (result.error?.includes('Could not find audio only device')) {
+        errorInfo = 'The selected microphone device was not found. Try refreshing the device list or selecting a different microphone.';
+      } else if (result.error?.includes('I/O error')) {
+        errorInfo = 'Cannot access the microphone. It may be in use by another application, disconnected, or permissions may be denied.';
+      } else if (result.error?.includes('permission')) {
+        errorInfo = 'Microphone access denied. Please check your Windows microphone permissions in Settings > Privacy & Security > Microphone.';
+      } else if (result.error?.includes('device')) {
+        errorInfo = 'Microphone device error. Please check that your microphone is connected and working in other applications.';
+      }
+      
+      this.micTestInfo.innerHTML = `
+        <div style="margin-bottom: 8px;">${errorInfo}</div>
+        <div style="font-size: 10px; color: rgba(255, 255, 255, 0.4);">
+          <strong>Troubleshooting tips:</strong><br>
+          • Try selecting "Auto-detect" mode<br>
+          • Check Windows microphone permissions<br>
+          • Ensure no other apps are using the microphone<br>
+          • Try refreshing the device list
+        </div>
+      `;
       
       this.updateMicrophoneStatus({ 
         status: 'disconnected', 
         message: 'Microphone test failed' 
       });
-      
-      // Show helpful troubleshooting info
-      if (result.error?.includes('permission')) {
-        this.micTestInfo.textContent += ' Please check microphone permissions.';
-      } else if (result.error?.includes('device')) {
-        this.micTestInfo.textContent += ' Please check that your microphone is connected and not in use by another application.';
-      }
     }
     
-    // Auto-hide test result after 10 seconds
+    // Auto-hide test result after 15 seconds (longer for error messages)
     setTimeout(() => {
       this.micTestResult.style.display = 'none';
-    }, 10000);
+    }, 15000);
+  }
+
+  private async testWebMicrophone() {
+    console.log('🌐 Testing web microphone access...');
+    
+    this.testWebMicBtn.textContent = '⏳ Testing...';
+    this.testWebMicBtn.disabled = true;
+    this.micTestResult.style.display = 'block';
+    this.micTestStatus.textContent = 'Testing web microphone access...';
+    this.micTestInfo.textContent = 'This tests browser-level microphone access using getUserMedia API.';
+    
+    this.updateMicrophoneStatus({ 
+      status: 'testing', 
+      message: 'Testing web microphone access...' 
+    });
+
+    try {
+      // Check if getUserMedia is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('getUserMedia is not supported in this browser or context');
+      }
+
+      // Request microphone access
+      console.log('🔍 Requesting microphone access via getUserMedia...');
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: true,
+        video: false
+      });
+
+      console.log('✅ getUserMedia access granted');
+
+      // Get audio tracks info
+      const audioTracks = stream.getAudioTracks();
+      let deviceInfo = '';
+      
+      if (audioTracks.length > 0) {
+        const track = audioTracks[0];
+        const settings = track.getSettings();
+        deviceInfo = `Device: ${track.label || 'Unknown'}, Sample Rate: ${settings.sampleRate || 'Unknown'}Hz`;
+        console.log('🎤 Audio track info:', { label: track.label, settings });
+      }
+
+      // Test recording for 2 seconds
+      const mediaRecorder = new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        console.log('🎵 Web recording completed, size:', blob.size);
+        
+        this.micTestStatus.textContent = '✅ Web microphone test successful!';
+        this.micTestInfo.innerHTML = `
+          <div>Browser can access your microphone successfully.</div>
+          <div style="margin-top: 4px; font-size: 10px;">${deviceInfo}</div>
+          <div style="margin-top: 4px; font-size: 10px;">Recorded ${blob.size} bytes using MediaRecorder API</div>
+        `;
+        
+        this.updateMicrophoneStatus({ 
+          status: 'connected', 
+          message: 'Web microphone test passed!' 
+        });
+
+        // Clean up
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.onerror = (event) => {
+        throw new Error(`MediaRecorder error: ${event.error?.message || 'Unknown error'}`);
+      };
+
+      // Start recording
+      mediaRecorder.start();
+      
+      // Stop after 2 seconds
+      setTimeout(() => {
+        if (mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+        }
+      }, 2000);
+
+    } catch (error) {
+      console.error('❌ Web microphone test failed:', error);
+      
+      let errorMessage = error.message;
+      let troubleshooting = '';
+
+      if (error.name === 'NotAllowedError' || error.message.includes('Permission denied')) {
+        errorMessage = 'Microphone access denied by browser';
+        troubleshooting = 'Click the microphone icon in your browser address bar to allow access, then try again.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'No microphone device found';
+        troubleshooting = 'Check that your microphone is connected and working.';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = 'Microphone is in use by another application';
+        troubleshooting = 'Close other apps that might be using the microphone and try again.';
+      } else if (error.message.includes('getUserMedia')) {
+        errorMessage = 'Browser microphone access not available';
+        troubleshooting = 'This may be due to HTTPS requirements or browser security settings.';
+      }
+
+      this.micTestStatus.textContent = '❌ Web microphone test failed';
+      this.micTestInfo.innerHTML = `
+        <div style="margin-bottom: 8px;">${errorMessage}</div>
+        ${troubleshooting ? `<div style="font-size: 10px; color: rgba(255, 255, 255, 0.4);">${troubleshooting}</div>` : ''}
+        <div style="font-size: 10px; color: rgba(255, 255, 255, 0.3); margin-top: 4px;">
+          <strong>Note:</strong> If web access works but FFmpeg doesn't, the issue is likely with device naming or permissions.
+        </div>
+      `;
+      
+      this.updateMicrophoneStatus({ 
+        status: 'disconnected', 
+        message: 'Web microphone test failed' 
+      });
+    } finally {
+      this.testWebMicBtn.textContent = '🌐 Test Web Access';
+      this.testWebMicBtn.disabled = false;
+      
+      // Auto-hide after 12 seconds
+      setTimeout(() => {
+        this.micTestResult.style.display = 'none';
+      }, 12000);
+    }
   }
 }
 

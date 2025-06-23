@@ -1412,33 +1412,8 @@ function setupIpcListeners() {
     }
   });
 
-  // Microphone management IPC handlers
-  ipcMain.on('discover-microphones', async (event) => {
-    try {
-      console.log('🎤 Discovering microphones...');
-      
-      // Create a temporary recorder instance for discovery
-      const tempRecorder = new WebAudioRecorder();
-      const audioInfo = await tempRecorder.getAudioDeviceInfo();
-      
-      console.log('🎤 Audio device info:', audioInfo);
-      
-      event.reply('microphones-discovered', audioInfo);
-      event.reply('microphone-status', {
-        status: audioInfo.needsConfiguration ? 'warning' : 'connected',
-        message: audioInfo.needsConfiguration 
-          ? 'Multiple microphones detected. Consider selecting a specific device.'
-          : `Ready with ${audioInfo.currentRecordingMethod} method`
-      });
-    } catch (error) {
-      console.error('❌ Error discovering microphones:', error);
-      event.reply('microphone-status', {
-        status: 'disconnected',
-        message: `Error: ${(error as Error).message}`
-      });
-    }
-  });
-
+  // The settings window handles its own device discovery and testing.
+  // We only need a listener to save the user's chosen device for future recordings.
   ipcMain.on('set-microphone-device', (event, deviceName) => {
     try {
       console.log('🎤 Setting microphone device:', deviceName);
@@ -1455,88 +1430,6 @@ function setupIpcListeners() {
       }
     } catch (error) {
       console.error('❌ Error setting microphone device:', error);
-    }
-  });
-
-  ipcMain.on('test-microphone', async (event, { device, duration = 3000 }) => {
-    try {
-      console.log('🎙️ Testing microphone:', device, 'for', duration, 'ms');
-      
-      // Create a test recorder instance
-      const testRecorder = new WebAudioRecorder();
-      
-      // Set device if not auto
-      if (device && device !== 'auto') {
-        testRecorder.setUserAudioDevice(device);
-      }
-      
-      let testResult = {
-        success: false,
-        error: '',
-        duration: 0,
-        method: '',
-        fileSize: 0
-      };
-      
-      // Set up event listeners for the test
-      testRecorder.on('finished', (outputFile: string) => {
-        try {
-          const fs = require('fs');
-          const stats = fs.statSync(outputFile);
-          testResult = {
-            success: true,
-            error: '',
-            duration: duration,
-            method: testRecorder.getRecordingMethod(),
-            fileSize: stats.size
-          };
-          
-          // Clean up test file
-          fs.unlinkSync(outputFile);
-          
-          event.reply('microphone-test-result', testResult);
-        } catch (cleanupError) {
-          console.error('❌ Error cleaning up test file:', cleanupError);
-          event.reply('microphone-test-result', {
-            success: true,
-            error: '',
-            duration: duration,
-            method: testRecorder.getRecordingMethod(),
-            fileSize: 0
-          });
-        }
-      });
-      
-      testRecorder.on('error', (error: Error) => {
-        testResult = {
-          success: false,
-          error: error.message,
-          duration: 0,
-          method: testRecorder.getRecordingMethod(),
-          fileSize: 0
-        };
-        event.reply('microphone-test-result', testResult);
-      });
-      
-      // Start the test recording
-      await testRecorder.start();
-      
-      // Stop after specified duration
-      setTimeout(() => {
-        if (testRecorder.isRecording) {
-          testRecorder.stop();
-        }
-      }, duration);
-      
-    } catch (error) {
-      console.error('❌ Error testing microphone:', error);
-      event.reply('microphone-test-result', {
-        success: false,
-        error: (error as Error).message,
-        duration: 0,
-        method: 'unknown',
-        fileSize: 0
-      });
     }
   });
 }

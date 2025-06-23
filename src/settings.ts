@@ -38,7 +38,6 @@ class SettingsRenderer {
   private microphoneSelect: HTMLSelectElement;
   private refreshMicBtn: HTMLButtonElement;
   private testMicBtn: HTMLButtonElement;
-  private testWebMicBtn: HTMLButtonElement;
   private micStatus: HTMLElement;
   private micHelpText: HTMLElement;
   private micTestResult: HTMLElement;
@@ -79,7 +78,6 @@ class SettingsRenderer {
     this.microphoneSelect = document.getElementById('microphone-device') as HTMLSelectElement;
     this.refreshMicBtn = document.getElementById('refresh-microphones') as HTMLButtonElement;
     this.testMicBtn = document.getElementById('test-microphone') as HTMLButtonElement;
-    this.testWebMicBtn = document.getElementById('test-web-microphone') as HTMLButtonElement;
     this.micStatus = document.getElementById('mic-status')!;
     this.micHelpText = document.getElementById('mic-help-text')!;
     this.micTestResult = document.getElementById('mic-test-result')!;
@@ -907,19 +905,27 @@ class SettingsRenderer {
     console.log('📊 Microphone test result:', result);
     
     this.micTestResult.style.display = 'block';
+
+    // Clear previous results to prevent creating multiple players
+    this.micTestStatus.innerHTML = '';
+    this.micTestInfo.innerHTML = '';
     
     if (result.success) {
       this.micTestStatus.textContent = '✅ Test successful! Your microphone is working correctly.';
-      this.micTestInfo.innerHTML = `
-        Recorded ${result.duration}ms using ${result.method}. File size: ${result.fileSize || 'unknown'} bytes.
-        <br>
-        <audio controls src="${result.audioUrl}" style="margin-top: 8px; width: 100%;"></audio>
-      `;
       
-      this.updateMicrophoneStatus({ 
-        status: 'connected', 
-        message: 'Microphone test passed!' 
-      });
+      const infoText = document.createElement('div');
+      infoText.textContent = `Recorded ${result.duration}ms using ${result.method}. File size: ${result.fileSize || 'unknown'} bytes.`;
+
+      const audioPlayer = document.createElement('audio');
+      audioPlayer.src = result.audioUrl;
+      audioPlayer.controls = true;
+      audioPlayer.autoplay = true; // For immediate feedback
+      audioPlayer.style.marginTop = '8px';
+      audioPlayer.style.width = '100%';
+      
+      this.micTestInfo.appendChild(infoText);
+      this.micTestInfo.appendChild(audioPlayer);
+
     } else {
       this.micTestStatus.textContent = '❌ Test failed. There may be an issue with your microphone.';
       

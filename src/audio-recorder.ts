@@ -51,7 +51,16 @@ export class AudioRecorder extends EventEmitter {
 
   public getUserAudioDevice(): string | null {
     if (this.audioSettings && this.audioSettings.platform === process.platform) {
-      return this.audioSettings.preferredDevice || null;
+      const device = this.audioSettings.preferredDevice;
+      
+      // Check if user has a bad/fake device name saved - clear it!
+      if (device && (device === 'default (System Default)' || device.includes('(System Default)'))) {
+        console.log('🧹 Clearing bad device setting:', device);
+        this.setUserAudioDevice('auto'); // Reset to auto
+        return 'auto';
+      }
+      
+      return device || null;
     }
     return null;
   }
@@ -666,51 +675,91 @@ export class AudioRecorder extends EventEmitter {
     
     try {
       if (process.platform === 'win32') {
-        // Discover Windows DirectShow devices - use the exact names as ffmpeg reports them
-        const result = await this.runCommand('ffmpeg', ['-list_devices', 'true', '-f', 'dshow', '-i', 'dummy'], 5000);
-        const output = result.stderr;
+        // Discover Windows DirectShow devices - ffmpeg device listing always exits with code 1, that's normal!
+        let output = '';
+        try {
+          const result = await this.runCommand('ffmpeg', ['-list_devices', 'true', '-f', 'dshow', '-i', 'dummy'], 5000);
+          output = result.stderr;
+        } catch (error) {
+          // This is NORMAL - ffmpeg exits with code 1 when listing devices with dummy input
+          console.log('🔍 ffmpeg device listing (normal exit code 1)');
+          output = error.stderr || error.stdout || '';
+        }
         
+        if (!output) {
+          console.log('❌ No output from ffmpeg device listing');
+          return devices;
+        }
+        
+        console.log('📋 Parsing ffmpeg device output...');
         const lines = output.split('\n');
         let inAudioSection = false;
         
         for (const line of lines) {
           if (line.includes('DirectShow audio devices')) {
             inAudioSection = true;
+            console.log('🎯 Found audio devices section');
             continue;
           }
           if (inAudioSection && line.includes('DirectShow video devices')) {
+            console.log('🏁 End of audio devices section');
             break;
           }
           if (inAudioSection && line.includes('"') && !line.includes('Alternative name')) {
             const match = line.match(/"([^"]+)"/);
             if (match) {
               const deviceName = match[1];
-              // Only add microphone-related devices, filter out speakers/outputs
-              if (deviceName.toLowerCase().includes('mic') || 
-                  deviceName.toLowerCase().includes('audio') ||
-                  deviceName.toLowerCase().includes('input') ||
-                  deviceName.toLowerCase().includes('capture')) {
+              console.log(`🔍 Found potential device: "${deviceName}"`);
+              
+              // Accept ANY device that looks like a microphone/input
+              const nameLower = deviceName.toLowerCase();
+              if (nameLower.includes('mic') || 
+                  nameLower.includes('audio') ||
+                  nameLower.includes('input') ||
+                  nameLower.includes('capture') ||
+                  nameLower.includes('recording') ||
+                  nameLower.includes('line in') ||
+                  nameLower.includes('built-in') ||
+                  // Even if none of above, include it anyway - let user decide
+                  true) {
                 devices.push(deviceName);
-                console.log(`🎤 Found Windows audio device: ${deviceName}`);
+                console.log(`✅ Added device: "${deviceName}"`);
               }
             }
           }
         }
         
-        // Test each discovered device to ensure it works
+        console.log(`🎤 Found ${devices.length} potential devices, testing them...`);
+        
+        // Test each discovered device to ensure it actually works
         const workingDevices = [];
         for (const device of devices) {
           try {
-            console.log(`🧪 Testing device: ${device}`);
+            console.log(`🧪 Testing device: "${device}"`);
             await this.runCommand('ffmpeg', ['-f', 'dshow', '-i', `audio="${device}"`, '-t', '0.1', '-f', 'null', '-'], 3000);
             workingDevices.push(device);
-            console.log(`✅ Device works: ${device}`);
+            console.log(`✅ Device WORKS: "${device}"`);
           } catch (testError) {
-            console.log(`❌ Device test failed for ${device}: ${testError.message}`);
+            console.log(`❌ Device test failed for "${device}": ${testError.message}`);
           }
         }
         
-        return workingDevices.length > 0 ? workingDevices : devices; // Use all if none test successful
+        console.log(`🎯 Final result: ${workingDevices.length} working devices out of ${devices.length} found`);
+        
+        // EMERGENCY FALLBACK: If no devices worked, try the exact device name we see in the logs
+        if (workingDevices.length === 0 && output.includes('Microphone (Realtek(R) Audio)')) {
+          console.log('🚨 EMERGENCY: Trying exact Realtek device name from logs...');
+          try {
+            const realtekDevice = 'Microphone (Realtek(R) Audio)';
+            await this.runCommand('ffmpeg', ['-f', 'dshow', '-i', `audio="${realtekDevice}"`, '-t', '0.1', '-f', 'null', '-'], 3000);
+            console.log('✅ EMERGENCY SUCCESS: Realtek device works!');
+            return [realtekDevice];
+          } catch (e) {
+            console.log('❌ Emergency Realtek test failed:', e.message);
+          }
+        }
+        
+        return workingDevices.length > 0 ? workingDevices : devices; // Use all if none test successful (better than nothing)
         
       } else if (process.platform === 'darwin') {
         // Discover macOS AVFoundation devices

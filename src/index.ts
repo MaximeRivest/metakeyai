@@ -857,6 +857,37 @@ const showPillNotification = (message: string) => {
   pastilleWindow.show();
 };
 
+// Spell feedback system
+const showSpellLaunchFeedback = (spellName: string) => {
+  console.log('✨ Launching spell:', spellName);
+  
+  if (!pastilleWindow) return;
+  
+  // Position near cursor for immediate feedback
+  positionPillNearCursor();
+  
+  // Show magical launching message
+  pastilleWindow.webContents.send('show-spell-launch', `✨ Casting ${spellName}...`);
+  pastilleWindow.show();
+};
+
+const showSpellCompletionFeedback = (result: any) => {
+  const output = result?.output || result;
+  console.log('🎯 Spell completed, result length:', output.length);
+  
+  if (!pastilleWindow) return;
+  
+  // Position near cursor and show result
+  positionPillNearCursor();
+  pastilleWindow.webContents.send('show-spell-result', output);
+  pastilleWindow.show();
+  
+  // Also ensure the result is the current clipboard entry
+  setTimeout(() => {
+    showPastille();
+  }, 100);
+};
+
 // Add debug menu for Windows
 function createDebugMenu() {
   if (process.platform === 'win32') {
@@ -1335,28 +1366,64 @@ async function initializeApp() {
       const clipboardContent = clipboard.readText();
       const spells = spellCaster?.getSpellBook().filter((s: any) => s.category === 'analysis') || [];
       if (spells.length > 0) {
-        await spellCaster?.castSpell(spells[0].id, clipboardContent);
+        const spell = spells[0];
+        showSpellLaunchFeedback(spell.name || 'Analysis Spell');
+        try {
+          const result = await spellCaster?.castSpell(spell.id, clipboardContent);
+          if (result) {
+            showSpellCompletionFeedback(result);
+          }
+        } catch (error) {
+          showPillNotification(`Spell failed: ${(error as Error).message}`);
+        }
       }
     },
     'spells-data': async () => {
       const clipboardContent = clipboard.readText();
       const spells = spellCaster?.getSpellBook().filter((s: any) => s.category === 'data') || [];
       if (spells.length > 0) {
-        await spellCaster?.castSpell(spells[0].id, clipboardContent);
+        const spell = spells[0];
+        showSpellLaunchFeedback(spell.name || 'Data Spell');
+        try {
+          const result = await spellCaster?.castSpell(spell.id, clipboardContent);
+          if (result) {
+            showSpellCompletionFeedback(result);
+          }
+        } catch (error) {
+          showPillNotification(`Spell failed: ${(error as Error).message}`);
+        }
       }
     },
     'spells-text': async () => {
       const clipboardContent = clipboard.readText();
       const spells = spellCaster?.getSpellBook().filter((s: any) => s.category === 'text') || [];
       if (spells.length > 0) {
-        await spellCaster?.castSpell(spells[0].id, clipboardContent);
+        const spell = spells[0];
+        showSpellLaunchFeedback(spell.name || 'Text Spell');
+        try {
+          const result = await spellCaster?.castSpell(spell.id, clipboardContent);
+          if (result) {
+            showSpellCompletionFeedback(result);
+          }
+        } catch (error) {
+          showPillNotification(`Spell failed: ${(error as Error).message}`);
+        }
       }
     },
     // Quick spell slots
     'spell-slot-1': async () => { 
       try {
         const clipboardContent = clipboard.readText();
-        await spellCaster?.castQuickSpell(1, clipboardContent);
+        const spell = spellCaster?.getQuickSlots()[0];
+        if (spell) {
+          showSpellLaunchFeedback(spell.name || 'Quick Spell 1');
+          const result = await spellCaster?.castQuickSpell(1, clipboardContent);
+          if (result) {
+            showSpellCompletionFeedback(result);
+          }
+        } else {
+          showPillNotification('No spell assigned to slot 1');
+        }
       } catch (error) {
         console.warn('⚠️ Quick spell slot 1:', (error as Error).message);
         showPillNotification('No spell assigned to slot 1');
@@ -1451,19 +1518,61 @@ async function initializeApp() {
   setupIpcListeners();
 }
 
-function setupIpcListeners() {
-  // Add IPC listener for update-clipboard
-  ipcMain.on('update-clipboard', (event, text) => {
-    console.log('📋 Received update-clipboard event:', text);
-    clipboard.writeText(text);
+// Global variables to track edit session
+let editSessionData: {
+  originalIndex: number;
+  originalText: string;
+  isActive: boolean;
+} | null = null;
+
+function setupIpcListeners(): void {
+  // Add IPC listener for edit-mode-start
+  ipcMain.on('edit-mode-start', (event, { entryIndex, entryText }) => {
+    console.log('📝 Edit mode started for entry:', entryIndex);
+    editSessionData = {
+      originalIndex: entryIndex,
+      originalText: entryText,
+      isActive: true
+    };
+    if (clipboardHistory) {
+      clipboardHistory.setEditModeActive(true);
+    }
+  });
+
+  // Add IPC listener for update-clipboard (final save)
+  ipcMain.on('update-clipboard', (event, text, mode) => {
+    console.log('📋 Received update-clipboard event - mode:', mode || 'save');
+    
+    if (!editSessionData || !editSessionData.isActive) {
+      console.warn('📝 No active edit session, treating as regular clipboard update');
+      clipboard.writeText(text);
+      if (clipboardHistory) {
+        clipboardHistory.addEntryWithReplacement(text, undefined);
+      }
+      showPastille();
+      return;
+    }
+    
+    const editMode = mode || 'save'; // default to save
+    if (clipboardHistory) {
+      clipboardHistory.handleEditComplete(text, editMode, editSessionData.originalIndex);
+    }
+    
+    // Clear edit session
+    editSessionData = null;
+    
+    console.log('📋 Edit session completed with mode:', editMode);
     showPastille();
   });
   
-  // Add IPC listener for update-clipboard-draft (real-time editing)
+  // Add IPC listener for update-clipboard-draft (auto-save - just updates system clipboard)
   ipcMain.on('update-clipboard-draft', (event, text) => {
-    console.log('📝 Received update-clipboard-draft event:', text.substring(0, 50) + '...');
+    // Only update system clipboard silently, no history updates
     clipboard.writeText(text);
-    // Don't show pastille for draft updates to avoid interrupting editing
+    // Update last known text to prevent monitoring pickup
+    if (clipboardHistory) {
+      (clipboardHistory as any).lastClipboardText = text;
+    }
   });
 
   // Add IPC listener for expand-pastille

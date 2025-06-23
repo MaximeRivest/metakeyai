@@ -19,6 +19,7 @@ class PastilleRenderer {
   private editor: HTMLTextAreaElement;
   private backdrop: HTMLElement;
   private saveBtn: HTMLButtonElement;
+  private overwriteBtn: HTMLButtonElement;
   private cancelBtn: HTMLButtonElement;
   private charCount: HTMLElement;
   private wordCount: HTMLElement;
@@ -41,6 +42,7 @@ class PastilleRenderer {
   private isEditing = false;
   private doubleClickTimeout: any = null;
   private clipboardUpdateTimeout: any = null;
+  private hasExplicitlySaved = false;
   private currentIndex: number = 0;
   private totalCount: number = 0;
 
@@ -133,6 +135,14 @@ class PastilleRenderer {
 
     pastilleIpcRenderer.on('show-processing', (_: any, msg: string) => {
       this.showProcessing(msg);
+    });
+
+    pastilleIpcRenderer.on('show-spell-launch', (_: any, message: string) => {
+      this.showSpellLaunch(message);
+    });
+
+    pastilleIpcRenderer.on('show-spell-result', (_: any, result: string) => {
+      this.showSpellResult(result);
     });
 
     // Double-click to expand/collapse
@@ -511,6 +521,61 @@ class PastilleRenderer {
     }
   }
 
+  // Spell feedback methods
+  private showSpellLaunch(message: string) {
+    console.log('✨ Pastille renderer: show spell launch');
+    this.isRecording = false;
+    
+    // Update collapsed state
+    this.waveCanvas.classList.add('hidden');
+    this.contentElement.textContent = message;
+    this.contentElement.style.color = '#9c27b0'; // Purple for magic
+    this.counterElement.textContent = '';
+    
+    // Update expanded state
+    this.controlWaveform.classList.add('hidden');
+    this.updateControlBar();
+
+    // Add sparkle animation
+    this.clearProcessing();
+    let sparkleCount = 0;
+    this.processingInterval = setInterval(() => {
+      sparkleCount = (sparkleCount + 1) % 4;
+      const sparkles = '✨'.repeat(sparkleCount + 1);
+      this.contentElement.textContent = `${sparkles} ${message} ${sparkles}`;
+      if (this.expanded) {
+        this.controlStatus.textContent = `${sparkles} ${message} ${sparkles}`;
+      }
+    }, 300);
+
+    this.show();
+  }
+
+  private showSpellResult(result: string) {
+    console.log('🎯 Pastille renderer: show spell result');
+    this.isRecording = false;
+    
+    // Clear any processing animation
+    this.clearProcessing();
+    
+    // Update collapsed state
+    this.waveCanvas.classList.add('hidden');
+    this.contentElement.textContent = result.substring(0, 100) + (result.length > 100 ? '...' : '');
+    this.contentElement.style.color = '#4caf50'; // Green for success
+    this.counterElement.textContent = `✨ Spell completed (${result.length} chars)`;
+    
+    // Update expanded state
+    this.controlWaveform.classList.add('hidden');
+    this.updateControlBar();
+
+    this.show();
+    
+    // Reset color after a few seconds
+    setTimeout(() => {
+      this.contentElement.style.color = '';
+    }, 3000);
+  }
+
   private applyFontSize() {
     this.pastilleElement.style.fontSize = `${this.fontSize}px`;
     this.counterElement.style.fontSize = `${Math.max(8, this.fontSize - 4)}px`;
@@ -522,9 +587,16 @@ class PastilleRenderer {
     console.log('📖 Expanding pastille editor');
     this.expanded = true;
     this.isEditing = true;
+    this.hasExplicitlySaved = false; // Reset save flag
     
     // Store original text
     this.originalText = this.currentEntry?.text || '';
+    
+    // Notify main process that edit mode has started
+    pastilleIpcRenderer.send('edit-mode-start', {
+      entryIndex: this.currentIndex,
+      entryText: this.originalText
+    });
     
     // Set up editor
     this.editor.value = this.originalText;
@@ -551,6 +623,21 @@ class PastilleRenderer {
     if (!this.expanded) return;
     
     console.log('📕 Collapsing pastille editor');
+    
+    // Check if there are unsaved changes and user didn't explicitly save
+    const currentText = this.editor.value.trim();
+    const hasUnsavedChanges = currentText !== this.originalText;
+    
+    if (hasUnsavedChanges && !this.hasExplicitlySaved) {
+      // Auto-save: keep both original and final (save mode)
+      pastilleIpcRenderer.send('update-clipboard', currentText, 'save');
+      console.log('💾 Auto-save: keeping both original and final versions');
+    } else if (!hasUnsavedChanges) {
+      // No changes: just cancel edit mode
+      pastilleIpcRenderer.send('update-clipboard', this.originalText, 'cancel');
+      console.log('📝 No changes: cancelling edit mode');
+    }
+    
     this.expanded = false;
     this.isEditing = false;
     
@@ -573,19 +660,66 @@ class PastilleRenderer {
     const newText = this.editor.value.trim();
     
     if (newText !== this.originalText) {
-      // Update clipboard with new content
-      pastilleIpcRenderer.send('update-clipboard', newText);
-      console.log('💾 Saved changes to clipboard');
+      // Final save: keep both original and final versions
+      pastilleIpcRenderer.send('update-clipboard', newText, 'save');
+      console.log('💾 Final save: keeping both original and final versions');
+      this.hasExplicitlySaved = true;
+    } else {
+      // No changes: just cancel edit mode
+      pastilleIpcRenderer.send('update-clipboard', this.originalText, 'cancel');
+      console.log('📝 No changes: cancelling edit mode');
     }
     
     this.collapse();
   }
 
+  private overwriteAndCollapse() {
+    const newText = this.editor.value.trim();
+    
+    // Overwrite: replace original with final version only
+    pastilleIpcRenderer.send('update-clipboard', newText, 'overwrite');
+    console.log('📝 Overwrite: replacing original with final version only');
+    this.hasExplicitlySaved = true;
+    
+    this.expanded = false;
+    this.isEditing = false;
+    
+    // Remove CSS classes
+    this.pastilleElement.classList.remove('expanded');
+    this.backdrop.classList.add('hidden');
+    
+    // Re-enable drag
+    this.pastilleElement.style.setProperty('-webkit-app-region', 'drag');
+
+    // Request main process to handle window collapse
+    pastilleIpcRenderer.send('collapse-pastille');
+    
+    // Reset button states
+    this.saveBtn.textContent = 'Save';
+    this.saveBtn.style.background = '#4CAF50';
+  }
+
   private cancelAndCollapse() {
-    // Restore original text without saving
-    this.editor.value = this.originalText;
-    this.collapse();
-    console.log('❌ Cancelled editing, changes discarded');
+    // Cancel: keep only original version
+    pastilleIpcRenderer.send('update-clipboard', this.originalText, 'cancel');
+    console.log('❌ Cancelled editing: keeping only original version');
+    
+    this.expanded = false;
+    this.isEditing = false;
+    
+    // Remove CSS classes
+    this.pastilleElement.classList.remove('expanded');
+    this.backdrop.classList.add('hidden');
+    
+    // Re-enable drag
+    this.pastilleElement.style.setProperty('-webkit-app-region', 'drag');
+
+    // Request main process to handle window collapse
+    pastilleIpcRenderer.send('collapse-pastille');
+    
+    // Reset button states
+    this.saveBtn.textContent = 'Save';
+    this.saveBtn.style.background = '#4CAF50';
   }
 
   private updateClipboardRealTime() {

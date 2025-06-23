@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { EventEmitter } from 'events';
 import { dialog, shell, app } from 'electron';
+import { UserDataManager } from './user-data-manager';
 
 export interface PythonSetupStatus {
   isConfigured: boolean;
@@ -25,16 +26,19 @@ export class PythonSetupManager extends EventEmitter {
   private static instance: PythonSetupManager | null = null;
   private setupStatus: PythonSetupStatus;
   private isSetupInProgress = false;
+  private userDataManager: UserDataManager;
 
   static getInstance(): PythonSetupManager {
-    if (!this.instance) {
-      this.instance = new PythonSetupManager();
+    if (!PythonSetupManager.instance) {
+      PythonSetupManager.instance = new PythonSetupManager();
     }
-    return this.instance;
+    return PythonSetupManager.instance;
   }
 
   constructor() {
     super();
+    this.userDataManager = UserDataManager.getInstance();
+    
     this.setupStatus = {
       isConfigured: false,
       uvAvailable: false,
@@ -50,6 +54,63 @@ export class PythonSetupManager extends EventEmitter {
       },
       errors: []
     };
+
+    // Load configuration on startup
+    this.loadConfiguration();
+  }
+
+  private loadConfiguration(): void {
+    try {
+      // Try to migrate legacy configuration first
+      this.userDataManager.migrateLegacyPythonConfig();
+      
+      const config = this.userDataManager.loadPythonConfig();
+      if (config) {
+        console.log('🐍 Loading Python configuration from user settings...');
+        
+        // Apply configuration to setup status
+        this.setupStatus.setupMethod = config.setupMethod;
+        this.setupStatus.customPythonPath = config.customPythonPath || null;
+        this.setupStatus.uvPath = config.uvPath || null;
+        this.setupStatus.projectPath = config.projectPath || null;
+        this.setupStatus.pythonPath = config.pythonPath || null;
+        
+        console.log(`✅ Python configuration loaded: ${config.setupMethod} setup`);
+        
+        // If we have a valid configuration, set as configured
+        if (config.setupMethod !== 'none' && (config.customPythonPath || config.projectPath)) {
+          this.setupStatus.isConfigured = true;
+        }
+      } else {
+        console.log('ℹ️ No Python configuration found, using defaults');
+      }
+    } catch (error) {
+      console.error('❌ Error loading Python configuration:', error);
+    }
+  }
+
+  private saveConfiguration(): void {
+    try {
+      const config = {
+        setupMethod: this.setupStatus.setupMethod,
+        customPythonPath: this.setupStatus.customPythonPath || undefined,
+        uvPath: this.setupStatus.uvPath || undefined,
+        projectPath: this.setupStatus.projectPath || undefined,
+        pythonPath: this.setupStatus.pythonPath || undefined,
+        uvInstallLocation: this.setupStatus.uvPath && this.setupStatus.uvPath.includes(app.getPath('userData')) 
+          ? 'user-config' as const 
+          : 'system' as const,
+        configuredAt: new Date().toISOString(),
+        preferences: {
+          useSystemPython: this.setupStatus.setupMethod === 'custom'
+        }
+      };
+      
+      this.userDataManager.savePythonConfig(config);
+      console.log('💾 Python configuration saved to user settings');
+    } catch (error) {
+      console.error('❌ Error saving Python configuration:', error);
+    }
   }
 
   async checkSetupStatus(): Promise<PythonSetupStatus> {
@@ -57,12 +118,10 @@ export class PythonSetupManager extends EventEmitter {
     
     this.setupStatus.errors = [];
     
-    // Check for custom Python path first
-    const customPath = this.getCustomPythonPath();
-    if (customPath && fs.existsSync(customPath)) {
-      this.setupStatus.customPythonPath = customPath;
+    // Check for custom Python path first (from loaded configuration)
+    if (this.setupStatus.customPythonPath && fs.existsSync(this.setupStatus.customPythonPath)) {
       this.setupStatus.setupMethod = 'custom';
-      await this.verifyCustomPython(customPath);
+      await this.verifyCustomPython(this.setupStatus.customPythonPath);
     } else {
       // Check for UV-based setup
       const uvPath = await this.findUv();
@@ -423,6 +482,10 @@ export class PythonSetupManager extends EventEmitter {
       await this.checkSetupStatus();
 
       if (this.setupStatus.isConfigured) {
+        // Save configuration to user settings
+        this.setupStatus.setupMethod = 'auto';
+        this.saveConfiguration();
+        
         console.log('✅ Auto setup completed successfully!');
         await dialog.showMessageBox({
           type: 'info',
@@ -1211,8 +1274,9 @@ export class PythonSetupManager extends EventEmitter {
       await this.verifyCustomPython(pythonPath);
       
       if (this.setupStatus.customPythonPath) {
-        // Save custom Python path
-        this.saveCustomPythonPath(pythonPath);
+        // Save configuration to user settings
+        this.setupStatus.setupMethod = 'custom';
+        this.saveConfiguration();
         
         // Show dependency instructions
         const missingDeps = Object.entries(this.setupStatus.dependencies)
@@ -1837,37 +1901,7 @@ if __name__ == "__main__":
     });
   }
 
-  private getCustomPythonPath(): string | null {
-    try {
-      const userDataPath = app.getPath('userData');
-      const configPath = path.join(userDataPath, 'python-config.json');
-      
-      if (fs.existsSync(configPath)) {
-        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        return config.customPythonPath || null;
-      }
-    } catch (error) {
-      console.warn('⚠️ Could not read Python config:', error);
-    }
-    return null;
-  }
 
-  private saveCustomPythonPath(pythonPath: string): void {
-    try {
-      const userDataPath = app.getPath('userData');
-      const configPath = path.join(userDataPath, 'python-config.json');
-      
-      const config = {
-        customPythonPath: pythonPath,
-        setupMethod: 'custom',
-        configuredAt: new Date().toISOString()
-      };
-      
-      fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-    } catch (error) {
-      console.error('❌ Could not save Python config:', error);
-    }
-  }
 
   getSetupStatus(): PythonSetupStatus {
     return { ...this.setupStatus };
@@ -1878,11 +1912,26 @@ if __name__ == "__main__":
       console.log('🔄 Resetting Python setup...');
       const userDataPath = app.getPath('userData');
       
-      // Remove custom Python config
-      const configPath = path.join(userDataPath, 'python-config.json');
-      if (fs.existsSync(configPath)) {
-        fs.unlinkSync(configPath);
-        console.log('✅ Removed custom Python config');
+      // Clear saved Python configuration
+      try {
+        const config = this.userDataManager.loadPythonConfig();
+        if (config) {
+          // Clear the configuration by saving an empty/reset config
+          this.userDataManager.savePythonConfig({
+            setupMethod: 'none',
+            configuredAt: new Date().toISOString()
+          });
+          console.log('✅ Cleared Python configuration');
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not clear Python configuration:', error);
+      }
+
+      // Remove legacy config if it exists
+      const legacyConfigPath = path.join(userDataPath, 'python-config.json');
+      if (fs.existsSync(legacyConfigPath)) {
+        fs.unlinkSync(legacyConfigPath);
+        console.log('✅ Removed legacy Python config');
       }
 
       // Remove UV project directory to allow fresh setup

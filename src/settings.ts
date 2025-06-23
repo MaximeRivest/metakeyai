@@ -1363,7 +1363,7 @@ class SettingsRenderer {
   }
 
   private updatePythonStatus(status: any) {
-    const { isConfigured, setupMethod, uvAvailable, customPythonPath, dependencies, errors } = status;
+    const { isConfigured, setupMethod, uvAvailable, uvPath, projectPath, customPythonPath, pythonPath, dependencies, errors } = status;
     
     let statusText = '';
     let statusClass = 'status';
@@ -1372,11 +1372,20 @@ class SettingsRenderer {
       statusClass += ' success';
       if (setupMethod === 'auto') {
         statusText = '✅ Python configured with UV (automatic setup)';
-        if (uvAvailable) {
-          statusText += '\n🚀 UV package manager available';
+        if (uvAvailable && uvPath) {
+          statusText += `\n🚀 UV: ${uvPath}`;
+        }
+        if (projectPath) {
+          statusText += `\n📁 Project: ${projectPath}`;
+        }
+        if (pythonPath) {
+          statusText += `\n🐍 Python: ${pythonPath}`;
         }
       } else if (setupMethod === 'custom') {
-        statusText = `✅ Custom Python configured: ${customPythonPath}`;
+        statusText = `✅ Custom Python configured`;
+        if (customPythonPath) {
+          statusText += `\n🐍 Path: ${customPythonPath}`;
+        }
       }
       
       // Show dependency status
@@ -1391,6 +1400,9 @@ class SettingsRenderer {
           statusText += `\n⚠️ Missing: ${missing.join(', ')}`;
         }
       }
+      
+      // Show configuration persistence info
+      statusText += '\n💾 Configuration saved to user settings';
     } else {
       statusClass += ' error';
       statusText = '❌ Python not configured';

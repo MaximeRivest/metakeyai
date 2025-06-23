@@ -262,6 +262,7 @@ export class UserDataManager {
         audioSettings: fs.existsSync(this.getAudioSettingsPath()),
         shortcutsSettings: fs.existsSync(this.getShortcutsSettingsPath()),
         modelConfig: fs.existsSync(this.getModelConfigPath()),
+        pythonConfig: fs.existsSync(this.getPythonConfigPath()),
         pythonEnv: fs.existsSync(this.getPythonEnvDir())
       }
     };
@@ -286,6 +287,98 @@ export class UserDataManager {
       }
     } catch (error) {
       console.log('⚠️ Cleanup failed:', error.message);
+    }
+  }
+
+  // Python Configuration Management
+  public getPythonConfigPath(): string {
+    return path.join(this.settingsDir, 'python-config.json');
+  }
+
+  public savePythonConfig(config: {
+    setupMethod: 'auto' | 'custom' | 'none';
+    customPythonPath?: string;
+    uvPath?: string;
+    projectPath?: string;
+    pythonPath?: string;
+    uvInstallLocation?: 'system' | 'user-config';
+    configuredAt: string;
+    preferences?: {
+      preferredPythonVersion?: string;
+      autoUpdateDependencies?: boolean;
+      useSystemPython?: boolean;
+    };
+  }): void {
+    try {
+      const configPath = this.getPythonConfigPath();
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+      console.log(`🐍 Python configuration saved to: ${configPath}`);
+    } catch (error) {
+      console.error('❌ Failed to save Python configuration:', error);
+      throw error;
+    }
+  }
+
+  public loadPythonConfig(): {
+    setupMethod: 'auto' | 'custom' | 'none';
+    customPythonPath?: string;
+    uvPath?: string;
+    projectPath?: string;
+    pythonPath?: string;
+    uvInstallLocation?: 'system' | 'user-config';
+    configuredAt: string;
+    preferences?: {
+      preferredPythonVersion?: string;
+      autoUpdateDependencies?: boolean;
+      useSystemPython?: boolean;
+    };
+  } | null {
+    try {
+      const configPath = this.getPythonConfigPath();
+      if (fs.existsSync(configPath)) {
+        const data = fs.readFileSync(configPath, 'utf8');
+        return JSON.parse(data);
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to load Python configuration:', error);
+      return null;
+    }
+  }
+
+  // Legacy Python Config Migration
+  public migrateLegacyPythonConfig(): boolean {
+    try {
+      // Check for old python-config.json in app userData directory
+      const legacyPath = path.join(app.getPath('userData'), 'python-config.json');
+      
+      if (fs.existsSync(legacyPath)) {
+        console.log('🔄 Migrating legacy Python configuration...');
+        
+        const legacyData = JSON.parse(fs.readFileSync(legacyPath, 'utf8'));
+        
+        // Convert to new format
+        const newConfig = {
+          setupMethod: legacyData.setupMethod || 'none',
+          customPythonPath: legacyData.customPythonPath,
+          configuredAt: legacyData.configuredAt || new Date().toISOString(),
+          preferences: {
+            useSystemPython: legacyData.setupMethod === 'custom'
+          }
+        };
+        
+        this.savePythonConfig(newConfig);
+        
+        // Remove legacy file
+        fs.unlinkSync(legacyPath);
+        console.log('✅ Legacy Python configuration migrated successfully');
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('❌ Failed to migrate legacy Python configuration:', error);
+      return false;
     }
   }
 } 

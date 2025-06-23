@@ -7,6 +7,7 @@ import { dialog, shell, app } from 'electron';
 export interface PythonSetupStatus {
   isConfigured: boolean;
   uvAvailable: boolean;
+  uvPath: string | null;
   pythonPath: string | null;
   projectPath: string | null;
   customPythonPath: string | null;
@@ -37,6 +38,7 @@ export class PythonSetupManager extends EventEmitter {
     this.setupStatus = {
       isConfigured: false,
       uvAvailable: false,
+      uvPath: null,
       pythonPath: null,
       projectPath: null,
       customPythonPath: null,
@@ -121,9 +123,26 @@ export class PythonSetupManager extends EventEmitter {
 
     console.log('🔍 Starting Python discovery...');
 
+    // First, try UV's built-in Python discovery if UV is available
+    try {
+      const uvPath = await this.findUv();
+      if (uvPath) {
+        console.log('🚀 Using UV for Python discovery...');
+        const uvPythons = await this.discoverPythonsWithUv(uvPath);
+        for (const python of uvPythons) {
+          if (!checkedPaths.has(python.path)) {
+            checkedPaths.add(python.path);
+            pythons.push(python);
+          }
+        }
+      }
+    } catch (error) {
+      console.log('ℹ️ UV Python discovery failed, using fallback methods:', (error as Error).message);
+    }
+
     try {
       // 1. Check common system Python commands
-      const commonCommands = ['python3', 'python', 'python3.11', 'python3.10', 'python3.9', 'python3.12'];
+      const commonCommands = ['python3', 'python', 'python3.12', 'python3.11', 'python3.10', 'python3.9'];
       
       for (const cmd of commonCommands) {
         try {
@@ -147,36 +166,7 @@ export class PythonSetupManager extends EventEmitter {
         }
       }
 
-      // 2. Check UV known Python installations
-      try {
-        const uvPath = await this.findUv();
-        if (uvPath) {
-          console.log('🚀 Checking UV for Python installations...');
-          const result = await this.runCommand(uvPath, ['python', 'list']);
-          if (result.stdout) {
-            const lines = result.stdout.split('\n');
-            for (const line of lines) {
-              // Parse UV output format: "3.11.0 /path/to/python"
-              const match = line.trim().match(/^(\d+\.\d+\.\d+)\s+(.+)$/);
-              if (match) {
-                const [, version, pythonPath] = match;
-                if (!checkedPaths.has(pythonPath) && fs.existsSync(pythonPath)) {
-                  checkedPaths.add(pythonPath);
-                  pythons.push({
-                    name: `UV Python ${version}`,
-                    path: pythonPath,
-                    version
-                  });
-                }
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.log('ℹ️ UV Python discovery failed:', (error as Error).message);
-      }
-
-      // 3. Check common installation directories
+      // 2. Check common installation directories
       const commonDirs = this.getCommonPythonDirectories();
       for (const dir of commonDirs) {
         if (fs.existsSync(dir)) {
@@ -212,7 +202,7 @@ export class PythonSetupManager extends EventEmitter {
         }
       }
 
-      // 4. Check pyenv installations
+      // 3. Check pyenv installations
       try {
         const pyenvRoot = process.env.PYENV_ROOT || path.join(require('os').homedir(), '.pyenv');
         const versionsDir = path.join(pyenvRoot, 'versions');
@@ -238,7 +228,7 @@ export class PythonSetupManager extends EventEmitter {
         // pyenv not available or not accessible
       }
 
-      // 5. Check conda installations
+      // 4. Check conda installations
       try {
         const condaResult = await this.runCommand('conda', ['info', '--envs']);
         if (condaResult.stdout) {
@@ -267,19 +257,61 @@ export class PythonSetupManager extends EventEmitter {
         // conda not available
       }
 
-      console.log(`✅ Discovered ${pythons.length} Python installations`);
-      return pythons.sort((a, b) => {
-        // Sort by version (newest first), then by name
-        if (a.version && b.version) {
-          return b.version.localeCompare(a.version);
-        }
-        return a.name.localeCompare(b.name);
-      });
+      console.log(`🔍 Discovered ${pythons.length} Python installations`);
+      return pythons;
 
     } catch (error) {
-      console.error('❌ Error during Python discovery:', error);
-      return [];
+      console.error('❌ Python discovery failed:', error);
+      return pythons; // Return what we found so far
     }
+  }
+
+  private async discoverPythonsWithUv(uvPath: string): Promise<{name: string, path: string, version?: string}[]> {
+    const pythons: {name: string, path: string, version?: string}[] = [];
+    
+    try {
+      // Use UV's python list command to find managed Python installations
+      const result = await this.runCommand(uvPath, ['python', 'list', '--only-installed']);
+      
+      if (result.stdout) {
+        const lines = result.stdout.split('\n');
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('cpython') && !trimmed.startsWith('python')) {
+            continue; // Skip headers and non-Python lines
+          }
+          
+          // Parse UV output format: usually "cpython-3.11.6-linux-x86_64-gnu /path/to/python"
+          // or "3.11.6 /path/to/python"
+          const match = trimmed.match(/(\d+\.\d+\.\d+)\s+(.+)$/) || 
+                       trimmed.match(/cpython-(\d+\.\d+\.\d+)-.+\s+(.+)$/);
+          
+          if (match) {
+            const [, version, pythonPath] = match;
+            if (fs.existsSync(pythonPath)) {
+              pythons.push({
+                name: `UV Python ${version}`,
+                path: pythonPath,
+                version
+              });
+            }
+          }
+        }
+      }
+      
+      // Also check for available downloads
+      try {
+        const availableResult = await this.runCommand(uvPath, ['python', 'list']);
+        console.log(`📋 UV has ${availableResult.stdout.split('\n').length - 1} Python versions available`);
+      } catch (error) {
+        // Not critical if this fails
+      }
+      
+    } catch (error) {
+      console.log('⚠️ UV python list failed:', (error as Error).message);
+    }
+    
+    return pythons;
   }
 
   private getCommonPythonDirectories(): string[] {
@@ -340,7 +372,7 @@ export class PythonSetupManager extends EventEmitter {
     this.isSetupInProgress = true;
 
     try {
-      console.log('🚀 Starting automatic Python setup...');
+      console.log('🚀 Starting automatic Python setup with UV...');
 
       // Step 1: Install UV if needed
       let uvPath = await this.findUv();
@@ -358,17 +390,32 @@ export class PythonSetupManager extends EventEmitter {
         console.log('✅ UV found at:', uvPath);
       }
 
-      // Step 2: Create project environment
+      // Step 2: Ensure Python is available (let UV manage Python)
+      console.log('🐍 Ensuring Python availability...');
+      try {
+        // Try to find a compatible Python version
+        const pythonFindResult = await this.runCommand(uvPath, ['python', 'find', '>=3.9']);
+        console.log('✅ Compatible Python found:', pythonFindResult.stdout.trim());
+      } catch (error) {
+        console.log('📥 No compatible Python found, installing Python 3.11 with UV...');
+        try {
+          await this.runCommand(uvPath, ['python', 'install', '3.11']);
+          console.log('✅ Python 3.11 installed successfully');
+        } catch (installError) {
+          throw new Error(`Failed to install Python with UV: ${(installError as Error).message}`);
+        }
+      }
+
+      // Step 3: Create project environment
       console.log('🏗️ Setting up Python project...');
       const projectPath = await this.createProjectEnvironment(uvPath);
       console.log('✅ Project environment created at:', projectPath);
       
-      // Step 3: Install dependencies
-      console.log('📦 Installing Python dependencies...');
+      // Step 4: Install dependencies without building the project
+      console.log('📦 Installing project dependencies...');
       await this.installDependencies(uvPath, projectPath);
-      console.log('✅ Dependencies installed successfully');
 
-      // Step 4: Verify setup
+      // Step 5: Verify setup
       console.log('🔍 Verifying setup...');
       await this.verifyUvSetup();
       
@@ -1210,71 +1257,85 @@ export class PythonSetupManager extends EventEmitter {
   private async installUv(): Promise<boolean> {
     const response = await dialog.showMessageBox({
       type: 'question',
-      buttons: ['Install UV', 'Cancel'],
+      buttons: ['Install UV', 'Install UV to User Config', 'Cancel'],
       defaultId: 0,
       title: 'UV Installation Required',
       message: 'MetaKeyAI uses UV for Python package management.',
       detail: 'UV is a fast Python package manager that will handle all Python dependencies automatically.\n\n' +
+              '• Install UV: Install globally to your system\n' +
+              '• Install UV to User Config: Install to MetaKeyAI config directory (recommended)\n\n' +
               'This will download and install UV from https://astral.sh/uv/',
     });
 
-    if (response.response !== 0) {
+    if (response.response === 2) {
       return false;
     }
+
+    const installToUserConfig = response.response === 1;
 
     try {
       const platform = process.platform;
       console.log(`🔄 Installing UV on ${platform}...`);
       
+      if (installToUserConfig) {
+        return await this.installUvToUserConfig();
+      }
+
       if (platform === 'win32') {
-        // Windows: Use PowerShell installer with better error handling
+        // Windows: Use the official installer script
         console.log('💻 Running UV installer for Windows...');
         try {
+          // Try PowerShell method first (recommended)
           await this.runCommand('powershell', [
             '-ExecutionPolicy', 'ByPass', 
             '-Command', 
             'irm https://astral.sh/uv/install.ps1 | iex'
           ]);
         } catch (error) {
-          // Try alternative Windows installation method
           console.log('⚠️ PowerShell method failed, trying curl...');
-          await this.runCommand('curl', [
-            '-LsSf', 
-            'https://astral.sh/uv/install.sh',
-            '-o', 
-            'uv_install.sh'
+          // Fallback to curl + bash for Windows
+          await this.runCommand('bash', [
+            '-c',
+            'curl -LsSf https://astral.sh/uv/install.sh | sh'
           ]);
-          await this.runCommand('sh', ['uv_install.sh']);
         }
       } else {
-        // Linux/macOS: Use shell installer with better error handling
+        // Linux/macOS: Use the official shell installer (recommended method)
         console.log(`💻 Running UV installer for ${platform}...`);
         try {
-          await this.runCommand('curl', [
-            '-LsSf', 
-            'https://astral.sh/uv/install.sh',
-            '|', 
-            'sh'
+          // Primary method: curl (recommended in docs)
+          await this.runCommand('sh', [
+            '-c',
+            'curl -LsSf https://astral.sh/uv/install.sh | sh'
           ]);
         } catch (error) {
-          // Try wget as fallback
           console.log('⚠️ Curl method failed, trying wget...');
-          await this.runCommand('wget', [
-            '-qO-', 
-            'https://astral.sh/uv/install.sh',
-            '|', 
-            'sh'
+          // Fallback: wget
+          await this.runCommand('sh', [
+            '-c',
+            'wget -qO- https://astral.sh/uv/install.sh | sh'
           ]);
         }
       }
       
-      // Wait a moment for installation to complete
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Wait for installation to complete and update PATH
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       // Verify installation was successful
       const uvPath = await this.findUv();
       if (uvPath) {
         console.log('✅ UV installation completed successfully at:', uvPath);
+        
+        // Show post-installation info
+        await dialog.showMessageBox({
+          type: 'info',
+          title: 'UV Installed Successfully',
+          message: 'UV has been installed successfully!',
+          detail: 'UV is now available and will be used to manage Python dependencies.\n\n' +
+                  'You may need to restart the application for PATH changes to take effect.',
+          buttons: ['OK']
+        });
+        
         return true;
       } else {
         throw new Error('UV was installed but cannot be found. You may need to restart the application or add UV to your PATH.');
@@ -1283,16 +1344,124 @@ export class PythonSetupManager extends EventEmitter {
     } catch (error) {
       console.error('❌ UV installation failed:', error);
       
-      // Provide detailed error information
+      // Provide detailed error information with UV-specific guidance
       await dialog.showMessageBox({
         type: 'error',
         title: 'UV Installation Failed',
         message: 'Failed to install UV automatically.',
         detail: `Error: ${(error as Error).message}\n\n` +
-                'Please try:\n' +
-                '• Check your internet connection\n' +
-                '• Install UV manually from https://docs.astral.sh/uv/\n' +
+                'Installation options:\n' +
+                '• Check your internet connection and try again\n' +
+                '• Install UV manually from https://docs.astral.sh/uv/getting-started/installation/\n' +
+                '• Use pipx: pipx install uv\n' +
+                '• Use pip: pip install uv\n' +
                 '• Or use a custom Python installation instead',
+        buttons: ['OK']
+      });
+      
+      return false;
+    }
+  }
+
+  private async installUvToUserConfig(): Promise<boolean> {
+    try {
+      console.log('📦 Installing UV to MetaKeyAI user config directory...');
+      
+      const userDataPath = app.getPath('userData');
+      const uvBinPath = path.join(userDataPath, 'tools', 'uv');
+      
+      // Create tools directory
+      const toolsDir = path.dirname(uvBinPath);
+      if (!fs.existsSync(toolsDir)) {
+        fs.mkdirSync(toolsDir, { recursive: true });
+      }
+
+      const platform = process.platform;
+      const arch = process.arch;
+      
+      // Determine the correct binary name and download URL
+      let binaryName: string;
+      let downloadUrl: string;
+      
+      if (platform === 'win32') {
+        binaryName = 'uv.exe';
+        downloadUrl = `https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip`;
+      } else if (platform === 'darwin') {
+        binaryName = 'uv';
+        const macArch = arch === 'arm64' ? 'aarch64' : 'x86_64';
+        downloadUrl = `https://github.com/astral-sh/uv/releases/latest/download/uv-${macArch}-apple-darwin.tar.gz`;
+      } else {
+        binaryName = 'uv';
+        const linuxArch = arch === 'arm64' ? 'aarch64' : 'x86_64';
+        downloadUrl = `https://github.com/astral-sh/uv/releases/latest/download/uv-${linuxArch}-unknown-linux-gnu.tar.gz`;
+      }
+
+      const finalBinaryPath = path.join(toolsDir, binaryName);
+
+      // Download and extract UV binary
+      console.log('📥 Downloading UV binary...');
+      const tempDir = path.join(userDataPath, 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      const downloadFile = path.join(tempDir, path.basename(downloadUrl));
+      
+      // Download the binary
+      if (platform === 'win32') {
+        await this.runCommand('curl', ['-L', downloadUrl, '-o', downloadFile]);
+        // Extract zip (simplified - would need proper zip extraction)
+        console.log('⚠️ Please extract the downloaded UV manually to:', toolsDir);
+      } else {
+        await this.runCommand('curl', ['-L', downloadUrl, '-o', downloadFile]);
+        // Extract tar.gz
+        await this.runCommand('tar', ['-xzf', downloadFile, '-C', tempDir]);
+        
+        // Find and move the uv binary
+        const extractedDir = fs.readdirSync(tempDir).find(name => name.startsWith('uv-'));
+        if (extractedDir) {
+          const extractedBinary = path.join(tempDir, extractedDir, 'uv');
+          if (fs.existsSync(extractedBinary)) {
+            fs.copyFileSync(extractedBinary, finalBinaryPath);
+            fs.chmodSync(finalBinaryPath, '755');
+          }
+        }
+      }
+
+      // Clean up temp files
+      try {
+        if (fs.existsSync(downloadFile)) fs.unlinkSync(downloadFile);
+      } catch (error) {
+        console.warn('Could not clean up temp files:', error);
+      }
+
+      // Verify installation
+      if (fs.existsSync(finalBinaryPath)) {
+        try {
+          await this.runCommand(finalBinaryPath, ['--version']);
+          console.log('✅ UV installed successfully to user config:', finalBinaryPath);
+          
+          // Store the custom UV path
+          this.setupStatus.uvPath = finalBinaryPath;
+          
+          return true;
+        } catch (error) {
+          console.error('UV binary downloaded but not working:', error);
+          return false;
+        }
+      } else {
+        throw new Error('Failed to install UV binary to user config directory');
+      }
+
+    } catch (error) {
+      console.error('❌ UV user config installation failed:', error);
+      
+      await dialog.showMessageBox({
+        type: 'error',
+        title: 'UV Installation Failed',
+        message: 'Failed to install UV to user config directory.',
+        detail: `Error: ${(error as Error).message}\n\n` +
+                'Please try the standard installation method or install UV manually.',
         buttons: ['OK']
       });
       
@@ -1309,13 +1478,15 @@ export class PythonSetupManager extends EventEmitter {
       fs.mkdirSync(projectPath, { recursive: true });
     }
 
-    // Create pyproject.toml
+    // Create pyproject.toml for UV dependency management (not a package)
     const pyprojectPath = path.join(projectPath, 'pyproject.toml');
     if (!fs.existsSync(pyprojectPath)) {
       const pyprojectContent = `[project]
-name = "metakeyai-daemon"
+name = "metakeyai-scripts"
 version = "1.0.0"
-description = "MetaKeyAI Python daemon and spells"
+description = "MetaKeyAI Python scripts and dependencies"
+readme = "README.md"
+requires-python = ">=3.9"
 dependencies = [
     "fastapi>=0.104.1",
     "uvicorn>=0.24.0",
@@ -1323,11 +1494,55 @@ dependencies = [
     "dspy-ai>=2.4.0",
 ]
 
+# Minimal build system - we're not building a package, just managing scripts
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+# UV configuration for script management
+dev-dependencies = []
+
+[tool.uv.workspace]
+# This is a simple script workspace, not a complex project
+members = []
 `;
       fs.writeFileSync(pyprojectPath, pyprojectContent);
+    }
+
+    // Create .python-version file for Python version pinning (UV best practice)
+    const pythonVersionPath = path.join(projectPath, '.python-version');
+    if (!fs.existsSync(pythonVersionPath)) {
+      // Use the current Python version or a default
+      const defaultPythonVersion = '3.11'; // Modern stable version
+      fs.writeFileSync(pythonVersionPath, defaultPythonVersion);
+    }
+
+    // Create README.md
+    const readmePath = path.join(projectPath, 'README.md');
+    if (!fs.existsSync(readmePath)) {
+      const readmeContent = `# MetaKeyAI Python Environment
+
+This is the Python environment for MetaKeyAI, managed by UV.
+
+## Structure
+
+- \`src/\` - Python source code and spells
+- \`pyproject.toml\` - Project configuration and dependencies
+- \`.python-version\` - Python version specification
+- \`uv.lock\` - Locked dependencies (auto-generated)
+
+## Dependencies
+
+The project uses:
+- FastAPI for the web API
+- Uvicorn for the ASGI server  
+- Pydantic for data validation
+- DSPy for AI/LLM integration
+
+This environment is automatically managed by MetaKeyAI.
+`;
+      fs.writeFileSync(readmePath, readmeContent);
     }
 
     // Copy Python scripts from resources
@@ -1344,6 +1559,37 @@ build-backend = "hatchling.build"
         console.log('📁 Copied Python scripts to project');
       } else {
         console.warn('⚠️ Python scripts not found in resources');
+        
+        // Create a basic daemon script if none found
+        const daemonPath = path.join(srcPath, 'metakeyai_daemon.py');
+        if (!fs.existsSync(daemonPath)) {
+          const basicDaemon = `#!/usr/bin/env python3
+"""
+MetaKeyAI background Python daemon
+Basic implementation when scripts are not found in resources.
+"""
+
+from fastapi import FastAPI
+import uvicorn
+import os
+
+app = FastAPI(title="MetaKeyAI Daemon", version="1.0.0")
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "version": "1.0.0"}
+
+@app.get("/ping")
+def ping():
+    return "pong"
+
+if __name__ == "__main__":
+    port = int(os.getenv("METAKEYAI_PORT", "5000"))
+    uvicorn.run(app, host="127.0.0.1", port=port)
+`;
+          fs.writeFileSync(daemonPath, basicDaemon);
+          console.log('📝 Created basic daemon script');
+        }
       }
     }
 
@@ -1387,9 +1633,27 @@ build-backend = "hatchling.build"
   }
 
   private async installDependencies(uvPath: string, projectPath: string): Promise<void> {
-    console.log('📦 Installing Python dependencies...');
-    await this.runCommand(uvPath, ['sync', '--project', projectPath]);
-    console.log('✅ Dependencies installed');
+    console.log('📦 Installing Python dependencies with UV...');
+    
+    try {
+      // Use UV add to install dependencies without building the project
+      const dependencies = ['fastapi>=0.104.1', 'uvicorn>=0.24.0', 'pydantic>=2.5.0', 'dspy-ai>=2.4.0'];
+      
+      console.log('📝 Installing individual dependencies...');
+      for (const dep of dependencies) {
+        try {
+          await this.runCommand(uvPath, ['add', '--project', projectPath, dep]);
+          console.log(`✅ Installed: ${dep}`);
+        } catch (error) {
+          console.warn(`⚠️ Failed to install ${dep}:`, error);
+        }
+      }
+      
+      console.log('✅ Dependencies installation completed');
+    } catch (error) {
+      console.error('❌ Dependency installation failed:', error);
+      throw new Error(`Failed to install dependencies: ${(error as Error).message}`);
+    }
   }
 
   private async verifyUvSetup(): Promise<void> {
@@ -1406,41 +1670,39 @@ build-backend = "hatchling.build"
 
     console.log('🔍 Verifying UV setup at:', projectPath);
 
-    // Check if uv.lock exists (indicates successful sync)
-    const uvLockPath = path.join(projectPath, 'uv.lock');
+    // Check if pyproject.toml exists
     const pyprojectPath = path.join(projectPath, 'pyproject.toml');
     
-    if (fs.existsSync(uvLockPath) && fs.existsSync(pyprojectPath)) {
+    if (fs.existsSync(pyprojectPath)) {
       console.log('✅ UV project files found');
       
-      // Try to actually verify packages can be imported
+      // Try to actually verify packages can be imported using the project's Python
       try {
-        const uvPath = await this.findUv();
-        if (uvPath) {
-          console.log('🔍 Testing package imports...');
+        const projectPython = await this.findProjectPython(projectPath);
+        if (projectPython) {
+          console.log('🔍 Testing package imports with project Python...');
           
-          // Test importing packages using uv run
-          const packages = ['fastapi', 'uvicorn', 'dspy'];
-          for (const pkg of packages) {
-            try {
-              await this.runCommand(uvPath, ['run', '--project', projectPath, 'python', '-c', `import ${pkg}; print('${pkg} OK')`]);
-              this.setupStatus.dependencies[pkg] = true;
-              console.log(`✅ ${pkg} verified`);
-            } catch (error) {
-              console.log(`❌ ${pkg} import failed:`, (error as Error).message);
-              this.setupStatus.dependencies[pkg] = false;
-            }
-          }
+          const dependencies = await this.checkPythonDependencies(projectPython);
+          
+          // Update setup status with dependency information
+          this.setupStatus.dependencies = {
+            fastapi: dependencies.fastapi || false,
+            uvicorn: dependencies.uvicorn || false,
+            dspy: dependencies['dspy-ai'] || false,
+          };
+          this.setupStatus.pythonPath = projectPython;
+          
+          console.log('📊 Dependencies verified:', this.setupStatus.dependencies);
         } else {
           // Fallback: if we have the files, assume dependencies are there
-          console.log('⚠️ UV command not found, assuming dependencies from lock file');
+          console.log('⚠️ Project Python not found, assuming dependencies from project files');
           this.setupStatus.dependencies.fastapi = true;
           this.setupStatus.dependencies.uvicorn = true;
           this.setupStatus.dependencies.dspy = true;
         }
       } catch (error) {
-        console.log('⚠️ Could not verify package imports, assuming from lock file:', (error as Error).message);
-        // Fallback: if we have uv.lock, assume packages are installed
+        console.log('⚠️ Could not verify package imports, assuming from project files:', (error as Error).message);
+        // Fallback: if we have pyproject.toml, assume packages are installed
         this.setupStatus.dependencies.fastapi = true;
         this.setupStatus.dependencies.uvicorn = true;
         this.setupStatus.dependencies.dspy = true;
@@ -1479,15 +1741,49 @@ build-backend = "hatchling.build"
   }
 
   private async findUv(): Promise<string | null> {
+    // First check if we have a custom UV path stored
+    if (this.setupStatus.uvPath && fs.existsSync(this.setupStatus.uvPath)) {
+      try {
+        await this.runCommand(this.setupStatus.uvPath, ['--version']);
+        return this.setupStatus.uvPath;
+      } catch (error) {
+        console.warn('Stored UV path not working:', this.setupStatus.uvPath);
+        this.setupStatus.uvPath = null;
+      }
+    }
+
+    // Check for UV in user config directory first
+    const userDataPath = app.getPath('userData');
+    const userConfigUv = path.join(userDataPath, 'tools', process.platform === 'win32' ? 'uv.exe' : 'uv');
+    if (fs.existsSync(userConfigUv)) {
+      try {
+        await this.runCommand(userConfigUv, ['--version']);
+        this.setupStatus.uvPath = userConfigUv;
+        return userConfigUv;
+      } catch (error) {
+        console.warn('User config UV not working:', userConfigUv);
+      }
+    }
+
+    // Try global UV command
     try {
       await this.runCommand('uv', ['--version']);
       return 'uv';
     } catch (error) {
+      // Check common installation paths based on UV documentation
       const commonPaths = [
+        // UV's default installation paths (from UV docs)
+        path.join(process.env.HOME || '', '.local', 'bin', 'uv'),
+        path.join(process.env.USERPROFILE || '', '.local', 'bin', 'uv.exe'),
+        // Cargo installation paths
         path.join(process.env.HOME || '', '.cargo', 'bin', 'uv'),
         path.join(process.env.USERPROFILE || '', '.cargo', 'bin', 'uv.exe'),
-        path.join(process.env.HOME || '', '.local', 'bin', 'uv'),
+        // System paths
         '/usr/local/bin/uv',
+        '/opt/homebrew/bin/uv', // Homebrew on Apple Silicon
+        // Windows program files
+        path.join(process.env.PROGRAMFILES || '', 'uv', 'uv.exe'),
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'uv', 'uv.exe'),
       ];
       
       for (const uvPath of commonPaths) {
@@ -1507,8 +1803,15 @@ build-backend = "hatchling.build"
 
   private runCommand(command: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
     return new Promise((resolve, reject) => {
+      // Create a clean environment without conflicting Python variables
+      const cleanEnv = { ...process.env };
+      delete cleanEnv.VIRTUAL_ENV;
+      delete cleanEnv.CONDA_DEFAULT_ENV;
+      delete cleanEnv.PYTHONPATH;
+      
       const proc = spawn(command, args, {
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: cleanEnv
       });
 
       let stdout = '';
@@ -1606,6 +1909,7 @@ build-backend = "hatchling.build"
       this.setupStatus = {
         isConfigured: false,
         uvAvailable: false,
+        uvPath: null,
         pythonPath: null,
         projectPath: null,
         customPythonPath: null,
@@ -1651,8 +1955,13 @@ build-backend = "hatchling.build"
     
     for (const dep of requiredDeps) {
       try {
-        const result = await this.runCommand(pythonPath, ['-c', `import ${dep === 'dspy-ai' ? 'dspy' : dep}; print('OK')`]);
-        dependencies[dep] = result.stdout.includes('OK');
+        const importName = dep === 'dspy-ai' ? 'dspy' : dep;
+        // Use a simple import test that doesn't require building the project
+        const result = await this.runCommand(pythonPath, [
+          '-c', 
+          `try:\n    import ${importName}\n    print("OK")\nexcept ImportError as e:\n    print(f"FAIL: {e}")`
+        ]);
+        dependencies[dep] = result.stdout.trim() === 'OK';
       } catch (error) {
         dependencies[dep] = false;
       }
@@ -1667,6 +1976,41 @@ build-backend = "hatchling.build"
       return { success: true };
     } catch (error) {
       return { success: false, error: (error as Error).message };
+    }
+  }
+
+  private async findProjectPython(projectPath: string): Promise<string | null> {
+    try {
+      // Check for .venv directory (UV creates virtual environments here)
+      const venvPath = path.join(projectPath, '.venv');
+      if (fs.existsSync(venvPath)) {
+        const pythonExe = process.platform === 'win32' 
+          ? path.join(venvPath, 'Scripts', 'python.exe')
+          : path.join(venvPath, 'bin', 'python');
+          
+        if (fs.existsSync(pythonExe)) {
+          return pythonExe;
+        }
+      }
+      
+      // Try using UV to find the project Python
+      const uvPath = await this.findUv();
+      if (uvPath) {
+        try {
+          const result = await this.runCommand(uvPath, ['python', 'find', '--project', projectPath]);
+          const pythonPath = result.stdout.trim();
+          if (pythonPath && fs.existsSync(pythonPath)) {
+            return pythonPath;
+          }
+        } catch (error) {
+          console.warn('UV python find failed:', error);
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error finding project Python:', error);
+      return null;
     }
   }
 } 

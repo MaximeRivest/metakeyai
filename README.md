@@ -4,34 +4,50 @@ A powerful AI-enhanced productivity tool built with Electron and Python, featuri
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Python Setup (Recommended)
 
-MetaKeyAI automatically manages its Python environment using **UV** (a fast Python package manager). If UV is not installed on your system, the app will offer to install it automatically on first run.
+MetaKeyAI can automatically set up Python using [UV](https://docs.astral.sh/uv/), a fast Python package manager. UV provides several advantages:
 
-### Installation
+- **Automatic Python Installation**: UV can install and manage Python versions for you
+- **Fast Dependency Resolution**: Significantly faster than pip
+- **Isolated Environments**: Each project gets its own clean environment
+- **Cross-Platform**: Works consistently on Windows, macOS, and Linux
 
-1. **Download and install** the latest release for your platform
-2. **Launch the application** - it will automatically:
-   - Detect if UV is installed
-   - Offer to install UV if not found (with user permission)
-   - Set up the Python environment automatically
-   - Install all required dependencies
+#### Option 1: Auto Setup (Recommended)
+1. Click **"Auto Setup"** in the Python settings
+2. Choose **"Install UV to User Config"** to keep UV within MetaKeyAI's configuration
+3. UV will automatically:
+   - Install itself to your MetaKeyAI config directory
+   - Install a compatible Python version (3.11)
+   - Create an isolated project environment
+   - Install all required dependencies (FastAPI, DSPy, etc.)
 
-### Manual UV Installation (Optional)
+#### Option 2: Manual UV Installation
+If you prefer to install UV system-wide:
 
-If you prefer to install UV manually before running the app:
-
-**Linux/macOS:**
 ```bash
+# macOS and Linux
 curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Alternative: Using pip
+pip install uv
+
+# Alternative: Using pipx
+pipx install uv
 ```
 
-**Windows (PowerShell):**
-```powershell
-irm https://astral.sh/uv/install.ps1 | iex
-```
+Then use **"Auto Setup"** in MetaKeyAI settings.
 
-## 🎯 Features
+#### Option 3: Custom Python
+If you have an existing Python installation:
+1. Click **"Custom Python"** 
+2. MetaKeyAI will auto-discover Python installations
+3. Select your preferred Python and install missing dependencies
+
+### Features
 
 - **🎤 Voice Recording**: Record and transcribe voice using multiple audio backends
 - **📋 Clipboard Management**: Advanced clipboard history with navigation
@@ -243,4 +259,119 @@ Please ensure:
 For issues and questions:
 - Check [AUDIO_SETUP.md](./AUDIO_SETUP.md) for setup problems
 - Review GitHub Issues for known problems
-- Include platform details when reporting bugs 
+- Include platform details when reporting bugs
+
+### Python Setup Issues
+
+**UV Installation Fails**:
+- Check internet connectivity
+- Try manual UV installation from [UV docs](https://docs.astral.sh/uv/getting-started/installation/)
+- Use custom Python setup as fallback
+
+**Auto Setup Verification Fails**:
+- Reset Python setup in settings
+- Try custom Python setup
+- Check if antivirus is blocking UV
+
+**Dependencies Missing**:
+- Use the "Install Dependencies" button in custom Python setup
+- Manually install: `pip install fastapi uvicorn pydantic dspy-ai`
+- Reset and retry auto setup
+
+### General Issues
+
+- Restart the application after Python setup changes
+- Check the console logs for detailed error messages
+- Reset configuration if settings become corrupted
+
+## Configuration
+
+MetaKeyAI stores its configuration in:
+- **Windows**: `%APPDATA%/metakeyai/`
+- **macOS**: `~/Library/Application Support/metakeyai/`
+- **Linux**: `~/.config/metakeyai/`
+
+This includes:
+- Python environment and dependencies
+- UV installation (if using user config option)
+- Keyboard shortcuts and settings
+- Spell configurations
+
+## Python Environment Details
+
+When using auto-setup, MetaKeyAI creates a UV project structure:
+
+```
+<config-dir>/python-project/
+├── pyproject.toml          # Project configuration
+├── .python-version         # Python version specification
+├── uv.lock                 # Locked dependencies (auto-generated)
+├── README.md               # Environment documentation
+├── .venv/                  # Virtual environment
+└── src/                    # Python source code
+    ├── metakeyai_daemon.py # Main daemon
+    └── spells/             # Custom spells
+```
+
+The project uses modern Python packaging standards:
+- `pyproject.toml` for dependency specification
+- `.python-version` for Python version pinning
+- `uv.lock` for reproducible builds
+- Isolated virtual environment
+
+### Dependencies
+
+Core Python dependencies managed by UV:
+- **FastAPI**: Web API framework for the Python daemon
+- **Uvicorn**: ASGI server for running the API
+- **Pydantic**: Data validation and settings management
+- **DSPy**: LLM integration and AI capabilities
+
+### Build Process
+
+The application is built using Electron Forge and includes:
+- Automatic Python environment bundling
+- Cross-platform binary distribution
+- Python script packaging and deployment
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test with both auto and custom Python setups
+5. Submit a pull request
+
+For Python-related development:
+- Use the UV project in `<config>/python-project/`
+- Add new spells to `src/spells/`
+- Test with the integrated daemon API
+
+## Troubleshooting
+
+### Python Setup Issues
+
+**UV Installation Fails**:
+- Check internet connectivity
+- Try manual UV installation from [UV docs](https://docs.astral.sh/uv/getting-started/installation/)
+- Use custom Python setup as fallback
+
+**Auto Setup Verification Fails**:
+- Reset Python setup in settings
+- Try custom Python setup
+- Check if antivirus is blocking UV
+
+**Dependencies Missing**:
+- Use the "Install Dependencies" button in custom Python setup
+- Manually install: `pip install fastapi uvicorn pydantic dspy-ai`
+- Reset and retry auto setup
+
+### General Issues
+
+- Restart the application after Python setup changes
+- Check the console logs for detailed error messages
+- Reset configuration if settings become corrupted
+
+## License
+
+[Add your license information here] 

@@ -1,4 +1,10 @@
-# MetaKeyAI
+> ⚠️ **AI Generated Content Warning**
+> 
+> This README is AI-generated and incomplete. We're still working on proper documentation.
+> Please check back later for comprehensive setup and usage instructions.
+
+
+# MetaKeyAI 
 
 A powerful AI-enhanced productivity tool built with Electron and Python, featuring voice recording, clipboard management, and intelligent text processing.
 

@@ -43,6 +43,12 @@ class SettingsRenderer {
   private micTestResult: HTMLElement;
   private micTestStatus: HTMLElement;
   private micTestInfo: HTMLElement;
+  private pythonStatusDetails: HTMLElement;
+  private setupPythonAutoBtn: HTMLButtonElement;
+  private setupPythonCustomBtn: HTMLButtonElement;
+  private resetPythonSetupBtn: HTMLButtonElement;
+  private pythonSetupProgress: HTMLElement;
+  private pythonSetupLog: HTMLElement;
   
   private shortcuts: ShortcutConfig[] = [];
   private editingShortcut: string | null = null;
@@ -83,12 +89,19 @@ class SettingsRenderer {
     this.micTestResult = document.getElementById('mic-test-result')!;
     this.micTestStatus = document.getElementById('mic-test-status')!;
     this.micTestInfo = document.getElementById('mic-test-info')!;
+    this.pythonStatusDetails = document.getElementById('python-status-details')!;
+    this.setupPythonAutoBtn = document.getElementById('setup-python-auto') as HTMLButtonElement;
+    this.setupPythonCustomBtn = document.getElementById('setup-python-custom') as HTMLButtonElement;
+    this.resetPythonSetupBtn = document.getElementById('reset-python-setup') as HTMLButtonElement;
+    this.pythonSetupProgress = document.getElementById('python-setup-progress')!;
+    this.pythonSetupLog = document.getElementById('python-setup-log')!;
 
     this.setupEventListeners();
     this.loadSettings();
     this.loadShortcuts();
     this.loadEnvSettings();
     this.loadMicrophoneSettings();
+    this.loadPythonSetupStatus();
   }
 
   private setupEventListeners() {
@@ -169,6 +182,27 @@ class SettingsRenderer {
       this.envStatus.textContent = msg;
       this.envStatus.className = ok ? 'status success' : 'status error';
       if (ok) setTimeout(()=>this.envStatus.textContent='',3000);
+    });
+
+    // Python setup event listeners
+    this.setupPythonAutoBtn.addEventListener('click', () => {
+      this.setupPythonAuto();
+    });
+
+    this.setupPythonCustomBtn.addEventListener('click', () => {
+      this.setupPythonCustom();
+    });
+
+    this.resetPythonSetupBtn.addEventListener('click', () => {
+      this.resetPythonSetup();
+    });
+
+    settingsIpcRenderer.on('python-setup-status', (_e: any, status: any) => {
+      this.updatePythonStatus(status);
+    });
+
+    settingsIpcRenderer.on('python-setup-progress', (_e: any, message: string) => {
+      this.updatePythonSetupProgress(message);
     });
   }
 
@@ -1216,6 +1250,198 @@ class SettingsRenderer {
     setTimeout(() => {
       this.micTestResult.style.display = 'none';
     }, 15000);
+  }
+
+  // Python Setup Methods
+  private async loadPythonSetupStatus() {
+    console.log('🐍 Loading Python setup status...');
+    try {
+      settingsIpcRenderer.send('check-python-setup');
+    } catch (error) {
+      console.error('❌ Failed to check Python setup:', error);
+      this.updatePythonStatus({
+        isConfigured: false,
+        error: 'Failed to check Python setup'
+      });
+    }
+  }
+
+  private async setupPythonAuto() {
+    console.log('🚀 Starting automatic Python setup...');
+    this.showButtonLoading('setup-python-auto', true);
+    this.showSetupProgress(true);
+    this.updatePythonSetupProgress('Starting automatic Python setup...');
+    
+    try {
+      const result = await settingsIpcRenderer.invoke('setup-python-auto');
+      if (result.success) {
+        this.updatePythonSetupProgress('✅ Python setup completed successfully!');
+        setTimeout(() => {
+          this.showSetupProgress(false);
+          this.showButtonLoading('setup-python-auto', false);
+          this.loadPythonSetupStatus();
+        }, 2000);
+      } else {
+        this.updatePythonSetupProgress(`❌ Setup failed: ${result.error}`);
+        setTimeout(() => {
+          this.showSetupProgress(false);
+          this.showButtonLoading('setup-python-auto', false);
+        }, 5000);
+      }
+    } catch (error) {
+      console.error('❌ Python auto setup failed:', error);
+      this.updatePythonSetupProgress(`❌ Setup failed: ${(error as Error).message}`);
+      setTimeout(() => {
+        this.showSetupProgress(false);
+        this.showButtonLoading('setup-python-auto', false);
+      }, 5000);
+    }
+  }
+
+  private async setupPythonCustom() {
+    console.log('📁 Starting custom Python setup...');
+    this.showButtonLoading('setup-python-custom', true);
+    this.showSetupProgress(true);
+    this.updatePythonSetupProgress('Discovering available Python installations...');
+    
+    try {
+      const result = await settingsIpcRenderer.invoke('setup-python-custom');
+      if (result.success) {
+        this.updatePythonSetupProgress('✅ Custom Python configured successfully!');
+        setTimeout(() => {
+          this.showSetupProgress(false);
+          this.showButtonLoading('setup-python-custom', false);
+          this.loadPythonSetupStatus();
+        }, 2000);
+      } else {
+        this.updatePythonSetupProgress(`❌ Setup failed: ${result.error}`);
+        setTimeout(() => {
+          this.showSetupProgress(false);
+          this.showButtonLoading('setup-python-custom', false);
+        }, 5000);
+      }
+    } catch (error) {
+      console.error('❌ Python custom setup failed:', error);
+      this.updatePythonSetupProgress(`❌ Setup failed: ${(error as Error).message}`);
+      setTimeout(() => {
+        this.showSetupProgress(false);
+        this.showButtonLoading('setup-python-custom', false);
+      }, 5000);
+    }
+  }
+
+  private async resetPythonSetup() {
+    console.log('🔄 Resetting Python setup...');
+    this.showButtonLoading('reset-python-setup', true);
+    this.showSetupProgress(true);
+    this.updatePythonSetupProgress('Resetting Python configuration...');
+    
+    try {
+      const result = await settingsIpcRenderer.invoke('reset-python-setup');
+      if (result.success) {
+        this.updatePythonSetupProgress('✅ Python setup reset successfully!');
+        setTimeout(() => {
+          this.showSetupProgress(false);
+          this.showButtonLoading('reset-python-setup', false);
+          this.loadPythonSetupStatus();
+        }, 2000);
+      } else {
+        this.updatePythonSetupProgress(`❌ Reset failed: ${result.error}`);
+        setTimeout(() => {
+          this.showSetupProgress(false);
+          this.showButtonLoading('reset-python-setup', false);
+        }, 5000);
+      }
+    } catch (error) {
+      console.error('❌ Python reset failed:', error);
+      this.updatePythonSetupProgress(`❌ Reset failed: ${(error as Error).message}`);
+      setTimeout(() => {
+        this.showSetupProgress(false);
+        this.showButtonLoading('reset-python-setup', false);
+      }, 5000);
+    }
+  }
+
+  private updatePythonStatus(status: any) {
+    const { isConfigured, setupMethod, uvAvailable, customPythonPath, dependencies, errors } = status;
+    
+    let statusText = '';
+    let statusClass = 'status';
+    
+    if (isConfigured) {
+      statusClass += ' success';
+      if (setupMethod === 'auto') {
+        statusText = '✅ Python configured with UV (automatic setup)';
+        if (uvAvailable) {
+          statusText += '\n🚀 UV package manager available';
+        }
+      } else if (setupMethod === 'custom') {
+        statusText = `✅ Custom Python configured: ${customPythonPath}`;
+      }
+      
+      // Show dependency status
+      if (dependencies) {
+        const available = Object.entries(dependencies).filter(([_, installed]) => installed).map(([dep, _]) => dep);
+        const missing = Object.entries(dependencies).filter(([_, installed]) => !installed).map(([dep, _]) => dep);
+        
+        if (available.length > 0) {
+          statusText += `\n📦 Available: ${available.join(', ')}`;
+        }
+        if (missing.length > 0) {
+          statusText += `\n⚠️ Missing: ${missing.join(', ')}`;
+        }
+      }
+    } else {
+      statusClass += ' error';
+      statusText = '❌ Python not configured';
+      
+      if (errors && errors.length > 0) {
+        statusText += `\n${errors.join('\n')}`;
+      }
+      
+      statusText += '\n💡 Use the buttons below to set up Python for AI spells and quick edit features.';
+    }
+    
+    this.pythonStatusDetails.textContent = statusText;
+    this.pythonStatusDetails.className = statusClass;
+  }
+
+  private showSetupProgress(show: boolean) {
+    this.pythonSetupProgress.style.display = show ? 'block' : 'none';
+    
+    // Disable buttons during setup
+    this.setupPythonAutoBtn.disabled = show;
+    this.setupPythonCustomBtn.disabled = show;
+    this.resetPythonSetupBtn.disabled = show;
+  }
+
+  private updatePythonSetupProgress(message: string) {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = `[${timestamp}] ${message}\n`;
+    
+    this.pythonSetupLog.textContent += logEntry;
+    this.pythonSetupLog.scrollTop = this.pythonSetupLog.scrollHeight;
+    
+    console.log('🐍', message);
+  }
+
+  private showButtonLoading(buttonId: string, loading: boolean) {
+    const button = document.getElementById(buttonId) as HTMLButtonElement;
+    if (!button) return;
+    
+    const btnText = button.querySelector('.btn-text') as HTMLElement;
+    const spinner = button.querySelector('.spinner') as HTMLElement;
+    
+    if (btnText && spinner) {
+      button.disabled = loading;
+      if (loading) {
+        btnText.style.opacity = '0.7';
+        spinner.style.display = 'block';
+      } else {
+        btnText.style.opacity = '1';
+        spinner.style.display = 'none';
+      }
+    }
   }
 }
 

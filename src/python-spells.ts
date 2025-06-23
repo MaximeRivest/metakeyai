@@ -130,6 +130,29 @@ export class PythonSpellCaster {
     }
   }
 
+  async initializeFallback(): Promise<void> {
+    console.log('🧙‍♂️ Initializing Python Spell Caster in fallback mode...');
+    
+    try {
+      // Load spell book
+      await this.loadSpellBook();
+      
+      // Register default spells with local Python only
+      await this.registerDefaultSpells();
+      
+      // Setup keyboard shortcuts
+      this.setupKeyboardShortcuts();
+      
+      this.isInitialized = true;
+      console.log('⚠️ Spell Caster ready with limited functionality! Spell book contains', this.spellBook.size, 'spells');
+      console.log('📝 Note: Python daemon not available - spells will run with local Python only');
+      
+    } catch (error) {
+      console.error('❌ Failed to initialize Spell Caster in fallback mode:', error);
+      throw error;
+    }
+  }
+
   private setupIpcHandlers(): void {
     // Cast spell by ID
     ipcMain.handle('cast-spell', async (event, spellId: string, input?: string) => {
@@ -562,13 +585,13 @@ export class PythonSpellCaster {
     switch (spell.outputFormat) {
       case 'replace':
         clipboard.writeText(output);
-        console.log('📋 Replaced clipboard with spell output');
+        console.log('📋 ✨ Replaced clipboard with spell output');
         break;
         
       case 'append': {
         const currentClipboard = clipboard.readText();
         clipboard.writeText(currentClipboard + '\n\n' + output);
-        console.log('📋 Appended spell output to clipboard');
+        console.log('📋 ✨ Appended spell output to clipboard');
         break;
       }
         
@@ -576,8 +599,18 @@ export class PythonSpellCaster {
       case 'json':
       default:
         clipboard.writeText(output);
-        console.log('📋 Copied spell output to clipboard');
+        console.log('📋 ✨ Copied spell output to clipboard');
         break;
+    }
+    
+    // Trigger magical feedback by sending IPC to main process
+    const windows = BrowserWindow.getAllWindows();
+    const mainWindow = windows.find(w => w.webContents.getURL().includes('pastille'));
+    
+    if (mainWindow && output) {
+      // Send spell completion to trigger magical feedback
+      mainWindow.webContents.send('show-spell-result', output);
+      console.log('✨ Triggered magical spell completion feedback');
     }
   }
 

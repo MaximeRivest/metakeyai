@@ -363,7 +363,9 @@ class PastilleRenderer {
   }
 
   private updatePastille(entry: ClipboardEntry | null, currentIndex: number, totalCount: number) {
-    console.log('📋 Pastille renderer: updating with entry:', entry?.text?.substring(0, 30) + '...', `${currentIndex + 1}/${totalCount}`);
+    // Safely handle entry.text for logging
+    const entryText = typeof entry?.text === 'string' ? entry.text : String(entry?.text || '');
+    console.log('📋 Pastille renderer: updating with entry:', entryText.substring(0, 30) + '...', `${currentIndex + 1}/${totalCount}`);
     
     this.currentEntry = entry;
     this.currentIndex = currentIndex;
@@ -375,10 +377,13 @@ class PastilleRenderer {
       this.contentElement.className = 'content empty';
       this.counterElement.textContent = '0/0';
     } else {
+      // Ensure entry.text is a string before using substring
+      const safeText = typeof entry.text === 'string' ? entry.text : String(entry.text || '');
+      
       // Truncate long text for display
-      const displayText = entry.text.length > 80 
-        ? entry.text.substring(0, 80) + '...' 
-        : entry.text;
+      const displayText = safeText.length > 80 
+        ? safeText.substring(0, 80) + '...' 
+        : safeText;
       
       this.contentElement.textContent = displayText;
       this.contentElement.className = 'content';
@@ -560,18 +565,37 @@ class PastilleRenderer {
     this.show();
   }
 
-  private showSpellResult(result: string) {
-    console.log('🎯 Pastille renderer: show spell result');
+  private showSpellResult(result: any) {
+    console.log('🎯 ✨ Pastille renderer: show magical spell result');
     this.isRecording = false;
     
     // Clear any processing animation
     this.clearProcessing();
     
-    // Update collapsed state
+    // Create magical stardust effect
+    this.createStardustEffect();
+    
+    // Ensure result is a string - handle different input types
+    let resultText: string;
+    if (typeof result === 'string') {
+      resultText = result;
+    } else if (result && typeof result === 'object') {
+      // If it's a SpellResult object, extract the output
+      resultText = result.output || result.toString();
+    } else {
+      resultText = String(result || '');
+    }
+    
+    // Update collapsed state with magical styling
     this.waveCanvas.classList.add('hidden');
-    this.contentElement.textContent = result.substring(0, 100) + (result.length > 100 ? '...' : '');
+    this.contentElement.textContent = resultText.substring(0, 100) + (resultText.length > 100 ? '...' : '');
     this.contentElement.style.color = '#4caf50'; // Green for success
-    this.counterElement.textContent = `✨ Spell completed (${result.length} chars)`;
+    this.contentElement.style.textShadow = '0 0 10px rgba(76, 175, 80, 0.6)'; // Magical glow
+    this.counterElement.textContent = `✨ Spell completed (${resultText.length} chars)`;
+    
+    // Add magical pulsing effect to the pastille
+    this.pastilleElement.style.boxShadow = '0 8px 32px rgba(76, 175, 80, 0.4), 0 0 20px rgba(76, 175, 80, 0.3)';
+    this.pastilleElement.style.borderColor = 'rgba(76, 175, 80, 0.5)';
     
     // Update expanded state
     this.controlWaveform.classList.add('hidden');
@@ -579,10 +603,63 @@ class PastilleRenderer {
 
     this.show();
     
-    // Reset color after a few seconds
+    // Reset magical effects after a few seconds
     setTimeout(() => {
       this.contentElement.style.color = '';
+      this.contentElement.style.textShadow = '';
+      this.pastilleElement.style.boxShadow = '';
+      this.pastilleElement.style.borderColor = '';
     }, 3000);
+  }
+
+  private createStardustEffect() {
+    // Create multiple stardust particles that float away from the pastille
+    const colors = ['#FFD700', '#FFA500', '#FF69B4', '#9370DB', '#00CED1'];
+    const particles = 12;
+    
+    for (let i = 0; i < particles; i++) {
+      setTimeout(() => {
+        const star = document.createElement('div');
+        star.innerHTML = '✨';
+        star.style.position = 'fixed';
+        star.style.fontSize = `${Math.random() * 8 + 12}px`;
+        star.style.color = colors[Math.floor(Math.random() * colors.length)];
+        star.style.pointerEvents = 'none';
+        star.style.zIndex = '10000';
+        star.style.textShadow = '0 0 6px currentColor';
+        
+        // Start from pastille center
+        const pastilleRect = this.pastilleElement.getBoundingClientRect();
+        const startX = pastilleRect.left + pastilleRect.width / 2;
+        const startY = pastilleRect.top + pastilleRect.height / 2;
+        
+        star.style.left = `${startX}px`;
+        star.style.top = `${startY}px`;
+        
+        document.body.appendChild(star);
+        
+        // Animate the stardust flying away
+        const angle = (Math.PI * 2 * i) / particles + Math.random() * 0.5;
+        const distance = 100 + Math.random() * 100;
+        const duration = 1000 + Math.random() * 500;
+        
+        star.animate([
+          {
+            transform: 'translate(0, 0) scale(0.5) rotate(0deg)',
+            opacity: '1'
+          },
+          {
+            transform: `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px) scale(1.2) rotate(360deg)`,
+            opacity: '0'
+          }
+        ], {
+          duration: duration,
+          easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+        }).addEventListener('finish', () => {
+          document.body.removeChild(star);
+        });
+      }, i * 50); // Stagger the particle creation
+    }
   }
 
   private applyFontSize() {

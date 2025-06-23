@@ -157,6 +157,78 @@
             border-color: rgba(255, 255, 255, 0.3);
         }
 
+        /* Tooltip styles */
+        .tooltip-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: nowrap;
+            max-width: 250px;
+            white-space: normal;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            z-index: 1000;
+            margin-bottom: 8px;
+        }
+
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: rgba(0, 0, 0, 0.9);
+        }
+
+        .tooltip-container:hover .tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Spinner styles */
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         .btn.primary {
             background: #4CAF50;
             border-color: #4CAF50;
@@ -535,6 +607,74 @@
                     <div id="mic-test-status" style="font-size: 12px; color: rgba(255, 255, 255, 0.7);"></div>
                     <div id="mic-test-info" style="font-size: 11px; color: rgba(255, 255, 255, 0.5); margin-top: 4px;"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Python Setup -->
+        <div class="section" id="python-setup-section">
+            <div class="section-title">🐍 Python Setup</div>
+            <div class="section-description">
+                Set up Python for AI spells and quick edit features. Choose automatic setup with UV or use your custom Python installation.
+            </div>
+            
+            <div id="python-status" class="form-group">
+                <div style="padding: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                    <div style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">📊 Python Status</div>
+                    <div id="python-status-details" style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">Checking Python setup...</div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <div class="tooltip-container">
+                        <button class="btn primary" id="setup-python-auto">
+                            <span class="btn-text">🚀 Auto Setup (Recommended)</span>
+                            <div class="spinner" style="display: none;"></div>
+                        </button>
+                        <div class="tooltip">
+                            <strong>Automatic Setup</strong><br>
+                            Installs UV (ultrafast Python package manager) and creates an isolated environment with all required dependencies. This is the easiest and most reliable option.
+                        </div>
+                    </div>
+                    <div class="tooltip-container">
+                        <button class="btn" id="setup-python-custom">
+                            <span class="btn-text">📁 Use Custom Python</span>
+                            <div class="spinner" style="display: none;"></div>
+                        </button>
+                        <div class="tooltip">
+                            <strong>Custom Python Setup</strong><br>
+                            Use your existing Python installation. We'll help you find available Python versions and install missing dependencies if needed.
+                        </div>
+                    </div>
+                    <div class="tooltip-container">
+                        <button class="btn" id="reset-python-setup">
+                            <span class="btn-text">🔄 Reset Setup</span>
+                            <div class="spinner" style="display: none;"></div>
+                        </button>
+                        <div class="tooltip">
+                            <strong>Reset Configuration</strong><br>
+                            Remove all Python configuration and start fresh. This will clear your current setup and allow you to reconfigure from scratch.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="python-setup-progress" class="form-group" style="display: none;">
+                <div style="padding: 12px; background: rgba(76, 175, 80, 0.1); border-radius: 8px; border: 1px solid rgba(76, 175, 80, 0.2);">
+                    <div style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">🔧 Setting up Python...</div>
+                    <div id="python-setup-log" style="font-size: 11px; color: rgba(255, 255, 255, 0.7); font-family: monospace; max-height: 100px; overflow-y: auto;"></div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <details style="background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 12px;">
+                    <summary style="cursor: pointer; font-weight: 500;">📋 Setup Options</summary>
+                    <div style="margin-top: 8px; font-size: 12px; color: rgba(255, 255, 255, 0.7);">
+                        <p><strong>Auto Setup:</strong> Installs UV (fast Python package manager) and creates an isolated environment with all required dependencies (FastAPI, uvicorn, DSPy).</p>
+                        <p><strong>Custom Python:</strong> Use your existing Python installation. You'll need to manually install: <code>pip install fastapi uvicorn dspy-ai</code></p>
+                        <p><strong>Reset Setup:</strong> Remove all Python configuration and start fresh.</p>
+                    </div>
+                </details>
             </div>
         </div>
 

@@ -6,20 +6,92 @@
   <title>Python Spell Book - MetaKeyAI</title>
   <style>
     :root {
-      --bg-primary: #0f0f0f;
-      --bg-secondary: #1a1a1a;
-      --bg-tertiary: #2a2a2a;
-      --border-color: #3a3a3a;
+      /* Magical Colors */
+      --color-primary: #4facfe;
+      --color-primary-end: #00f2fe;
+      --color-secondary: #667eea;
+      --color-secondary-end: #764ba2;
+      --color-purple-start: #667eea;
+      --color-purple-end: #764ba2;
+      --color-success: #4CAF50;
+      --color-success-hover: #45a049;
+      --color-warning: #ff9800;
+      --color-error: #f44336;
+      --color-white: #ffffff;
+      
+      /* Magical Backgrounds */
+      --bg-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --bg-secondary: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
+      --bg-dark: rgba(0, 0, 0, 0.9);
+      --bg-light: rgba(255, 255, 255, 0.1);
+      --bg-lighter: rgba(255, 255, 255, 0.15);
+      --bg-lightest: rgba(255, 255, 255, 0.2);
+      --bg-glass: rgba(255, 255, 255, 0.05);
+      --bg-glass-hover: rgba(255, 255, 255, 0.08);
+      
+      /* Glass effect backgrounds */
+      --glass-light: rgba(255, 255, 255, 0.15);
+      --glass-medium: rgba(255, 255, 255, 0.1);
+      --glass-dark: rgba(255, 255, 255, 0.05);
+      
+      /* Borders */
+      --border-light: rgba(255, 255, 255, 0.1);
+      --border-medium: rgba(255, 255, 255, 0.2);
+      --border-accent: var(--color-primary);
+      
+      /* Text */
       --text-primary: #ffffff;
-      --text-secondary: #b0b0b0;
-      --text-muted: #808080;
-      --accent-primary: #4f46e5;
-      --accent-secondary: #7c3aed;
-      --success: #10b981;
-      --warning: #f59e0b;
-      --error: #ef4444;
-      --spell-bg: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-      --quick-slot-bg: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+      --text-secondary: rgba(255, 255, 255, 0.9);
+      --text-muted: rgba(255, 255, 255, 0.7);
+      --text-disabled: rgba(255, 255, 255, 0.5);
+      --text-very-muted: rgba(255, 255, 255, 0.4);
+      
+      /* Shadows */
+      --shadow-small: 0 4px 15px rgba(0, 0, 0, 0.1);
+      --shadow-medium: 0 8px 32px rgba(0, 0, 0, 0.2);
+      --shadow-large: 0 20px 60px rgba(0, 0, 0, 0.3);
+      --shadow-primary: 0 4px 15px rgba(79, 172, 254, 0.3);
+      --shadow-primary-hover: 0 6px 20px rgba(79, 172, 254, 0.4);
+      --shadow-glass: 0 25px 50px rgba(0, 0, 0, 0.25);
+      
+      /* Gradients */
+      --gradient-primary: linear-gradient(90deg, var(--color-primary) 0%, var(--color-primary-end) 100%);
+      --gradient-secondary: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-secondary-end) 100%);
+      --gradient-text: linear-gradient(45deg, var(--color-primary), var(--color-primary-end), #fff, var(--color-primary));
+      
+      /* Spacing */
+      --space-xs: 0.25rem;
+      --space-sm: 0.5rem;
+      --space-md: 1rem;
+      --space-lg: 1.5rem;
+      --space-xl: 2rem;
+      --space-2xl: 3rem;
+      
+      /* Border radius */
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 15px;
+      --radius-xl: 20px;
+      --radius-pill: 25px;
+      --radius-round: 50%;
+      
+      /* Transitions */
+      --transition-fast: all 0.2s ease;
+      --transition-normal: all 0.3s ease;
+      --transition-slow: all 0.5s ease;
+      --transition-bounce: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+      
+      /* Typography */
+      --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+      
+      /* Z-index */
+      --z-background: -1;
+      --z-base: 0;
+      --z-content: 10;
+      --z-header: 100;
+      --z-overlay: 1000;
+      --z-modal: 10000;
     }
 
     * {
@@ -29,45 +101,165 @@
     }
 
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+      font-family: var(--font-family);
+      background: var(--bg-primary);
       color: var(--text-primary);
       min-height: 100vh;
       overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Background Pattern */
+    .background-pattern {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0.1;
+      background-image: 
+        radial-gradient(circle at 25% 25%, #fff 2px, transparent 2px),
+        radial-gradient(circle at 75% 75%, #fff 2px, transparent 2px);
+      background-size: 60px 60px;
+      animation: float 20s ease-in-out infinite;
+      z-index: var(--z-background);
+      pointer-events: none;
+    }
+
+    /* Magic Sparkles for page */
+    .magic-sparkles {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      z-index: var(--z-background);
+    }
+
+    .sparkle {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      background: linear-gradient(45deg, var(--color-primary), var(--color-primary-end));
+      border-radius: var(--radius-round);
+      animation: sparkle-float 8s ease-in-out infinite;
+      opacity: 0;
+      box-shadow: 0 0 10px var(--color-primary);
+    }
+
+    .sparkle:nth-child(1) { top: 20%; left: 10%; animation-delay: 0s; }
+    .sparkle:nth-child(2) { top: 60%; left: 20%; animation-delay: 1.5s; }
+    .sparkle:nth-child(3) { top: 30%; right: 15%; animation-delay: 3s; }
+    .sparkle:nth-child(4) { bottom: 40%; left: 30%; animation-delay: 4.5s; }
+    .sparkle:nth-child(5) { top: 70%; right: 25%; animation-delay: 6s; }
+    .sparkle:nth-child(6) { bottom: 20%; right: 40%; animation-delay: 7.5s; }
+
+    @keyframes sparkle-float {
+      0%, 100% { 
+        opacity: 0;
+        transform: translateY(0) scale(0.5) rotate(0deg);
+      }
+      25% {
+        opacity: 1;
+        transform: translateY(-20px) scale(1) rotate(90deg);
+      }
+      50% {
+        opacity: 1;
+        transform: translateY(-40px) scale(1.2) rotate(180deg);
+      }
+      75% {
+        opacity: 1;
+        transform: translateY(-30px) scale(1) rotate(270deg);
+      }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-20px); }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @keyframes magicalGlow {
+      0%, 100% { box-shadow: 0 0 20px rgba(79, 172, 254, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(79, 172, 254, 0.6), 0 0 60px rgba(79, 172, 254, 0.3); }
     }
 
     .container {
       max-width: 1200px;
       margin: 0 auto;
       padding: 20px;
+      position: relative;
+      z-index: var(--z-content);
     }
 
     .header {
       text-align: center;
       margin-bottom: 30px;
       padding: 20px;
-      background: var(--spell-bg);
-      border-radius: 16px;
-      border: 1px solid var(--border-color);
+      background: var(--glass-light);
+      backdrop-filter: blur(20px);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border-medium);
+      box-shadow: var(--shadow-glass);
+      animation: fadeInUp 0.6s ease-out;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      animation: shimmer 3s infinite;
+    }
+
+    @keyframes shimmer {
+      0% { left: -100%; }
+      100% { left: 100%; }
     }
 
     .header h1 {
       font-size: 2.5rem;
       font-weight: 700;
       margin-bottom: 10px;
-      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      background: var(--gradient-primary);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
+      position: relative;
+      z-index: 1;
     }
 
     .header p {
       color: var(--text-secondary);
       font-size: 1.1rem;
+      position: relative;
+      z-index: 1;
     }
 
     .quick-slots {
       margin-bottom: 30px;
+      animation: fadeInUp 0.6s ease-out 0.1s both;
     }
 
     .section-title {
@@ -78,6 +270,17 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      background: var(--gradient-text);
+      background-size: 300% 300%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: shimmerText 4s ease-in-out infinite;
+    }
+
+    @keyframes shimmerText {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
     }
 
     .quick-slots-grid {
@@ -88,50 +291,60 @@
     }
 
     .quick-slot {
-      background: var(--quick-slot-bg);
-      border: 2px solid var(--border-color);
-      border-radius: 12px;
+      background: var(--glass-medium);
+      backdrop-filter: blur(20px);
+      border: 2px solid var(--border-light);
+      border-radius: var(--radius-lg);
       padding: 15px;
       text-align: center;
-      transition: all 0.3s ease;
+      transition: var(--transition-normal);
       cursor: pointer;
       min-height: 100px;
       display: flex;
       flex-direction: column;
       justify-content: center;
       position: relative;
+      box-shadow: var(--shadow-medium);
+      animation: fadeInUp 0.6s ease-out calc(0.1s * var(--delay, 0)) both;
     }
 
     .quick-slot:hover {
-      border-color: var(--accent-primary);
+      background: var(--glass-light);
+      border-color: var(--border-accent);
       transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(79, 70, 229, 0.3);
+      box-shadow: var(--shadow-primary-hover);
+      animation: magicalGlow 2s ease-in-out infinite;
     }
 
     .quick-slot.empty {
       border-style: dashed;
       opacity: 0.6;
+      background: var(--glass-dark);
     }
 
     .quick-slot .slot-number {
       position: absolute;
       top: 8px;
       left: 12px;
-      background: var(--accent-primary);
+      background: var(--gradient-primary);
       color: white;
       width: 24px;
       height: 24px;
-      border-radius: 50%;
+      border-radius: var(--radius-round);
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 0.8rem;
       font-weight: 600;
+      box-shadow: var(--shadow-primary);
+      animation: pulse 2s ease-in-out infinite;
     }
 
     .quick-slot .spell-icon {
       font-size: 2rem;
       margin-bottom: 8px;
+      filter: drop-shadow(0 0 10px rgba(79, 172, 254, 0.5));
+      animation: float 3s ease-in-out infinite;
     }
 
     .quick-slot .spell-name {
@@ -143,31 +356,54 @@
     .quick-slot .spell-shortcut {
       font-size: 0.8rem;
       color: var(--text-muted);
-      background: var(--bg-tertiary);
+      background: var(--glass-dark);
       padding: 2px 6px;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
       display: inline-block;
+      border: 1px solid var(--border-light);
     }
 
     .spells-container {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       gap: 20px;
+      animation: fadeInUp 0.6s ease-out 0.3s both;
     }
 
     .spell-card {
-      background: var(--spell-bg);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
+      background: var(--glass-medium);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
       padding: 20px;
-      transition: all 0.3s ease;
+      transition: var(--transition-normal);
       cursor: pointer;
+      box-shadow: var(--shadow-medium);
+      position: relative;
+      overflow: hidden;
+      animation: fadeInUp 0.6s ease-out calc(0.1s * var(--delay, 0)) both;
+    }
+
+    .spell-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+      transition: var(--transition-slow);
     }
 
     .spell-card:hover {
-      border-color: var(--accent-primary);
+      background: var(--glass-light);
+      border-color: var(--border-accent);
       transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(79, 70, 229, 0.2);
+      box-shadow: var(--shadow-primary-hover);
+    }
+
+    .spell-card:hover::before {
+      left: 100%;
     }
 
     .spell-header {
@@ -179,6 +415,8 @@
 
     .spell-icon {
       font-size: 2rem;
+      filter: drop-shadow(0 0 8px rgba(79, 172, 254, 0.4));
+      animation: float 4s ease-in-out infinite;
     }
 
     .spell-title {
@@ -195,10 +433,11 @@
     .spell-category {
       font-size: 0.8rem;
       color: var(--text-muted);
-      background: var(--bg-tertiary);
+      background: var(--glass-dark);
       padding: 2px 8px;
-      border-radius: 12px;
+      border-radius: var(--radius-pill);
       display: inline-block;
+      border: 1px solid var(--border-light);
     }
 
     .spell-description {
@@ -222,45 +461,54 @@
     .spell-output {
       font-size: 0.8rem;
       color: var(--text-muted);
-      background: var(--bg-tertiary);
+      background: var(--glass-dark);
       padding: 2px 6px;
-      border-radius: 4px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-light);
     }
 
     .spell-actions {
       display: flex;
       gap: 10px;
+      flex-wrap: wrap;
     }
 
     .btn {
       padding: 8px 16px;
       border: none;
-      border-radius: 8px;
+      border-radius: var(--radius-md);
       font-weight: 500;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: var(--transition-normal);
       font-size: 0.9rem;
+      position: relative;
+      overflow: hidden;
+      font-family: inherit;
     }
 
     .btn-primary {
-      background: var(--accent-primary);
+      background: var(--gradient-primary);
       color: white;
+      box-shadow: var(--shadow-primary);
     }
 
     .btn-primary:hover {
-      background: var(--accent-secondary);
       transform: translateY(-1px);
+      box-shadow: var(--shadow-primary-hover);
     }
 
     .btn-secondary {
-      background: var(--bg-tertiary);
+      background: var(--glass-medium);
       color: var(--text-secondary);
-      border: 1px solid var(--border-color);
+      border: 1px solid var(--border-light);
+      backdrop-filter: blur(10px);
     }
 
     .btn-secondary:hover {
-      background: var(--border-color);
+      background: var(--glass-light);
+      border-color: var(--border-medium);
       color: var(--text-primary);
+      transform: translateY(-1px);
     }
 
     .btn-small {
@@ -269,16 +517,23 @@
     }
 
     .shortcuts-help {
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
+      background: var(--glass-dark);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
       padding: 15px;
       margin-top: 20px;
+      box-shadow: var(--shadow-medium);
+      animation: fadeInUp 0.6s ease-out 0.4s both;
     }
 
     .shortcuts-help h4 {
       margin-bottom: 10px;
       color: var(--text-primary);
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
 
     .shortcut-item {
@@ -286,14 +541,17 @@
       justify-content: space-between;
       margin-bottom: 5px;
       font-size: 0.9rem;
+      padding: 2px 0;
     }
 
     .shortcut-key {
-      background: var(--bg-primary);
+      background: var(--glass-medium);
       padding: 2px 6px;
-      border-radius: 4px;
-      font-family: monospace;
-      color: var(--accent-primary);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      color: var(--color-primary);
+      border: 1px solid var(--border-light);
+      box-shadow: var(--shadow-small);
     }
 
     .loading {
@@ -307,13 +565,14 @@
     }
 
     .spinner {
-      border: 3px solid var(--border-color);
-      border-top: 3px solid var(--accent-primary);
-      border-radius: 50%;
+      border: 3px solid var(--border-light);
+      border-top: 3px solid var(--color-primary);
+      border-radius: var(--radius-round);
       width: 30px;
       height: 30px;
       animation: spin 1s linear infinite;
       margin: 0 auto 10px;
+      box-shadow: 0 0 20px rgba(79, 172, 254, 0.3);
     }
 
     @keyframes spin {
@@ -323,6 +582,16 @@
   </style>
 </head>
 <body>
+  <div class="background-pattern"></div>
+  <div class="magic-sparkles">
+    <div class="sparkle"></div>
+    <div class="sparkle"></div>
+    <div class="sparkle"></div>
+    <div class="sparkle"></div>
+    <div class="sparkle"></div>
+    <div class="sparkle"></div>
+  </div>
+  
   <div class="container">
     <div class="header">
       <h1>🧙‍♂️ Python Spell Book</h1>

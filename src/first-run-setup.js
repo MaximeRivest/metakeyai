@@ -259,7 +259,77 @@ function setupOptionHandlers() {
     });
 }
 
-// -------------------- MICROPHONE TEST --------------------
+// -------------------- TTS TEST --------------------
+function setupTtsTest() {
+    const playBtn = document.getElementById('ttsPlayBtn');
+    const status = document.getElementById('ttsStatus');
+    const continueBtn = document.getElementById('ttsContinueBtn');
+
+    if (playBtn.dataset.initialized) return; // Prevent multiple bindings
+    playBtn.dataset.initialized = 'true';
+
+    const sampleText = 'MetaKeyAI is a magical way to cast spells on your clipboard! This setup will help you configure everything quickly.';
+
+    playBtn.addEventListener('click', async () => {
+        status.textContent = 'Generating audio...';
+        playBtn.disabled = true;
+        playBtn.textContent = '🔄 Testing...';
+        
+        try {
+            // Test TTS using the new robust testing handler
+            const result = await ipcRenderer.invoke('test-first-run-tts', { 
+                voice: 'nova', 
+                text: sampleText 
+            });
+            
+            if (result.success) {
+                status.textContent = '✅ Playing sample audio – did you hear it clearly?';
+                continueBtn.disabled = false;
+                playBtn.textContent = '🔊 Test Again';
+            } else {
+                status.textContent = `❌ TTS test failed: ${result.error || 'Unknown error'}`;
+                playBtn.textContent = '🔊 Try Again';
+                
+                // If it's an API key issue, suggest going back to configure it
+                if (result.error && result.error.includes('API key')) {
+                    status.innerHTML = `❌ TTS test failed: ${result.error}<br><small>💡 You may need to configure your OpenAI API key first</small>`;
+                }
+            }
+        } catch (error) {
+            console.error('TTS test error:', error);
+            status.textContent = `❌ TTS test failed: ${error.message}`;
+            playBtn.textContent = '🔊 Try Again';
+        }
+        
+        // Reset button after a delay
+        setTimeout(() => {
+            playBtn.disabled = false;
+            if (playBtn.textContent.includes('Testing')) {
+                playBtn.textContent = '🔊 Play Sample Audio';
+            }
+        }, 3000);
+    });
+
+    continueBtn.addEventListener('click', () => {
+        nextStep();
+    });
+}
+
+// -------------------- API KEY TESTING --------------------
+function setupApiKeyTest() {
+    // This function can be called from various steps to test API connectivity
+    window.testApiKey = async function(apiKey) {
+        try {
+            const result = await ipcRenderer.invoke('test-first-run-api-key', apiKey);
+            return result;
+        } catch (error) {
+            return { success: false, valid: false, error: error.message };
+        }
+    };
+}
+
+// -------------------- ENHANCED MICROPHONE TEST --------------------
+// Update the existing microphone test to use the new robust testing
 function setupMicrophoneTest() {
     const micReadyBtn = document.getElementById('micReadyBtn');
     const micRecordBtn = document.getElementById('micRecordBtn');
@@ -290,30 +360,33 @@ function setupMicrophoneTest() {
     let audioContext = null;
     let analyser = null;
     let mediaStream = null;
+    let recordingTimer = null;
 
     // Details toggle functionality
     const detailsBtn = document.getElementById('detailsBtn');
     const detailsSection = document.getElementById('detailsSection');
     
-    detailsBtn.addEventListener('click', () => {
-        const isVisible = detailsSection.style.display !== 'none';
-        if (isVisible) {
-            detailsSection.style.display = 'none';
-            detailsBtn.textContent = 'What does this do? 🤔';
-        } else {
-            detailsSection.style.display = 'block';
-            detailsBtn.textContent = 'Got it! 👍';
-        }
-    });
+    if (detailsBtn && detailsSection) {
+        detailsBtn.addEventListener('click', () => {
+            const isVisible = detailsSection.style.display !== 'none';
+            if (isVisible) {
+                detailsSection.style.display = 'none';
+                detailsBtn.textContent = 'What does this do? 🤔';
+            } else {
+                detailsSection.style.display = 'block';
+                detailsBtn.textContent = 'Got it! 👍';
+            }
+        });
+    }
 
     // Step 1: User clicks "I'm ready" - magical focus transition
     micReadyBtn.addEventListener('click', () => {
-        // First, magically vanish unnecessary elements
-        const stepDescription = document.querySelector('#step-microphone .step-description');
-        const detailsToggle = document.querySelector('.details-toggle');
-        const detailsSection = document.querySelector('.details-section');
+        // First, magically vanish unnecessary elements within the ready section only
+        const stepDescription = micReadySection.querySelector('.step-description');
+        const detailsToggle = micReadySection.querySelector('.details-toggle');
+        const detailsSection = micReadySection.querySelector('.details-section');
         
-        // Fade out unnecessary elements
+        // Fade out unnecessary elements (only those in the ready section)
         if (stepDescription) {
             stepDescription.style.animation = 'magicalVanish 0.6s ease-out forwards';
         }
@@ -330,6 +403,10 @@ function setupMicrophoneTest() {
             setTimeout(() => {
                 stepTitle.textContent = '🎤 Let\'s Test Your Voice!';
                 stepTitle.style.animation = 'magicalAppear 0.6s ease-out';
+                // Clear the animation after it completes to prevent re-triggering
+                setTimeout(() => {
+                    stepTitle.style.animation = '';
+                }, 600);
             }, 300);
         }
         
@@ -338,6 +415,12 @@ function setupMicrophoneTest() {
             micReadySection.style.display = 'none';
             micTestSection.style.display = 'block';
             micTestSection.style.animation = 'magicalAppear 0.8s ease-out';
+            
+            // Clear the animation after it completes to prevent re-triggering
+            setTimeout(() => {
+                micTestSection.style.animation = '';
+            }, 800);
+            
             setupWaveform();
         }, 600);
     });
@@ -347,26 +430,43 @@ function setupMicrophoneTest() {
     let chunks = [];
 
     // Listen for recording commands from main process
-    ipcRenderer.on('start-first-run-recording', async () => {
+    ipcRenderer.on('start-first-run-recording', async (event, data) => {
+        console.log('📨 Received start-first-run-recording event:', data);
         await startWebRecording();
     });
 
-    ipcRenderer.on('stop-first-run-recording', () => {
+    ipcRenderer.on('stop-first-run-recording', (event, data) => {
+        console.log('📨 Received stop-first-run-recording event:', data);
         stopWebRecording();
     });
 
-    async function startWebRecording() {
+    // Listen for test recording commands (for quick mic test)
+    ipcRenderer.on('start-first-run-test-recording', async (event, data) => {
+        console.log('📨 Received start-first-run-test-recording event:', data);
+        await startWebRecording('test');
+    });
+
+    ipcRenderer.on('stop-first-run-test-recording', (event, data) => {
+        console.log('📨 Received stop-first-run-test-recording event:', data);
+        stopWebRecording('test');
+    });
+
+    async function startWebRecording(mode = 'normal') {
         try {
+            console.log(`🎬 Starting web recording in ${mode} mode`);
+            
             // Get user media with selected device or default
             const deviceId = deviceSelect.value;
             const constraints = deviceId && deviceId !== 'auto' ? 
                 { audio: { deviceId: { exact: deviceId } } } : 
                 { audio: true };
             
+            console.log('🎤 Requesting user media with constraints:', constraints);
             mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+            console.log('✅ Got media stream:', mediaStream.getTracks().map(t => ({ kind: t.kind, label: t.label })));
             
-            // Setup waveform visualization
-            if (waveCanvas && waveCtx) {
+            // Setup waveform visualization (only for normal mode, not test)
+            if (mode === 'normal' && waveCanvas && waveCtx) {
                 waveCanvas.style.display = 'block';
                 setupAudioVisualization(mediaStream);
             }
@@ -381,83 +481,147 @@ function setupMicrophoneTest() {
                 mimeType = 'audio/webm';
             }
             
+            console.log('🎵 Using MIME type:', mimeType || 'default');
             mediaRecorder = mimeType ? new MediaRecorder(mediaStream, { mimeType }) : new MediaRecorder(mediaStream);
             chunks = [];
 
-            mediaRecorder.ondataavailable = e => chunks.push(e.data);
+            mediaRecorder.ondataavailable = e => {
+                console.log('📊 Received audio data chunk:', e.data.size, 'bytes');
+                chunks.push(e.data);
+            };
+            
             mediaRecorder.onstop = () => {
+                console.log('🎵 MediaRecorder stopped, processing', chunks.length, 'chunks');
                 const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-                const buffer = blob.arrayBuffer().then(arrayBuffer => {
-                    ipcRenderer.send('first-run-audio-finished', { 
-                        buffer: arrayBuffer, 
-                        mimeType: mediaRecorder.mimeType || 'audio/webm' 
-                    });
+                console.log('📦 Created blob:', blob.size, 'bytes');
+                
+                blob.arrayBuffer().then(arrayBuffer => {
+                    console.log('🎵 Sending audio data to main process:', arrayBuffer.byteLength, 'bytes');
+                    if (mode === 'test') {
+                        ipcRenderer.send('first-run-test-audio-finished', { 
+                            buffer: arrayBuffer, 
+                            mimeType: mediaRecorder.mimeType || 'audio/webm' 
+                        });
+                    } else {
+                        ipcRenderer.send('first-run-audio-finished', { 
+                            buffer: arrayBuffer, 
+                            mimeType: mediaRecorder.mimeType || 'audio/webm' 
+                        });
+                    }
+                }).catch(error => {
+                    console.error('❌ Error converting blob to array buffer:', error);
+                    if (mode === 'test') {
+                        ipcRenderer.send('first-run-test-audio-error', error.message);
+                    } else {
+                        ipcRenderer.send('first-run-audio-error', error.message);
+                    }
                 });
             };
 
             mediaRecorder.start();
-            ipcRenderer.send('first-run-audio-started');
+            console.log('🎬 MediaRecorder started');
+            
+            if (mode === 'test') {
+                console.log('📤 Sending first-run-test-audio-started');
+                ipcRenderer.send('first-run-test-audio-started');
+            } else {
+                console.log('📤 Sending first-run-audio-started');
+                ipcRenderer.send('first-run-audio-started');
+            }
             
         } catch (error) {
-            console.error('Failed to start web recording:', error);
-            ipcRenderer.send('first-run-audio-error', error.message);
+            console.error('❌ Failed to start web recording:', error);
+            if (mode === 'test') {
+                ipcRenderer.send('first-run-test-audio-error', error.message);
+            } else {
+                ipcRenderer.send('first-run-audio-error', error.message);
+            }
         }
     }
 
-    function stopWebRecording() {
+    function stopWebRecording(mode = 'normal') {
+        console.log(`🛑 Stopping web recording in ${mode} mode`);
+        
         if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            console.log('🛑 Stopping MediaRecorder');
             mediaRecorder.stop();
+        } else {
+            console.log('⚠️ MediaRecorder not available or already stopped');
         }
-        cleanupAudio();
+        
+        // Only cleanup audio for normal mode (test mode doesn't use visualization)
+        if (mode === 'normal') {
+            console.log('🧹 Cleaning up audio visualization');
+            cleanupAudio();
+        } else {
+            // For test mode, just clean up the media stream
+            if (mediaStream) {
+                console.log('🧹 Cleaning up media stream for test mode');
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+        }
     }
 
     // Step 2: Start recording with waveform
     micRecordBtn.addEventListener('click', async () => {
-        if (isRecording) return;
+        if (isRecording) {
+            // Stop recording if already recording
+            await stopRecording();
+            return;
+        }
 
         try {
             status.textContent = 'Starting recording...';
             micRecordBtn.disabled = true;
+            console.log('🎤 User clicked record button - attempting to start recording');
 
             // Start recording using the generalized recording system
-            // Option 1: Use the specific first-run handler (backwards compatibility)
             const result = await ipcRenderer.invoke('start-first-run-recording');
-            
-            // Option 2: Use the generalized handler (for future flexibility)
-            // const result = await ipcRenderer.invoke('start-recording-session', {
-            //     sessionId: 'first-run-mic-test',
-            //     windowType: 'first-run',
-            //     filePrefix: 'first_run_test',
-            //     eventPrefix: 'first-run'
-            // });
+            console.log('🎤 Recording start result:', result);
             
             if (result.success) {
                 isRecording = true;
-                micRecordBtn.textContent = '🎤 Recording... (speak now!)';
-                status.textContent = 'Recording for 5 seconds... Please read the text aloud!';
+                micRecordBtn.textContent = '⏹️ Stop Recording';
+                micRecordBtn.disabled = false;
+                status.textContent = 'Recording... Click Stop when finished, or it will auto-stop in 10 seconds.';
+                console.log('✅ Recording UI updated successfully');
                 
-                // Auto-stop after 5 seconds
-                setTimeout(async () => {
+                // Auto-stop after 10 seconds (longer than before for user flexibility)
+                recordingTimer = setTimeout(async () => {
                     if (isRecording) {
+                        status.textContent = 'Auto-stopping recording...';
+                        console.log('⏰ Auto-stopping recording after 10 seconds');
                         await stopRecording();
                     }
-                }, 5000);
+                }, 10000);
             } else {
                 throw new Error(result.error || 'Failed to start recording');
             }
 
         } catch (error) {
-            console.error('Recording failed:', error);
-            status.textContent = 'Microphone access failed. Please check permissions and try again.';
+            console.error('❌ Recording failed:', error);
+            status.textContent = `Microphone access failed: ${error.message}. Please check permissions and try again.`;
             micRecordBtn.disabled = false;
             micRecordBtn.textContent = '🔴 Start Recording';
+            isRecording = false;
             cleanupAudio();
         }
     });
 
     async function stopRecording() {
         try {
+            // Clear the auto-stop timer
+            if (recordingTimer) {
+                clearTimeout(recordingTimer);
+                recordingTimer = null;
+            }
+            
+            status.textContent = 'Stopping recording...';
+            console.log('🛑 Attempting to stop recording');
+            
             const result = await ipcRenderer.invoke('stop-first-run-recording');
+            console.log('🛑 Stop recording result:', result);
             
             if (result.success) {
                 isRecording = false;
@@ -466,20 +630,36 @@ function setupMicrophoneTest() {
                 // Clean up waveform
                 cleanupAudio();
                 
+                // Reset button
+                micRecordBtn.textContent = '🔴 Start Recording';
+                micRecordBtn.disabled = false;
+                
+                console.log('✅ Moving to playback section');
+                
                 // Animate away the test section and show playback
                 micTestSection.style.animation = 'fadeOut 0.5s ease-out forwards';
                 setTimeout(() => {
                     micTestSection.style.display = 'none';
+                    micTestSection.style.animation = ''; // Clear animation
+                    
                     micPlaybackSection.style.display = 'block';
                     micPlaybackSection.style.animation = 'fadeIn 0.5s ease-out forwards';
+                    
+                    // Clear the playback animation after it completes
+                    setTimeout(() => {
+                        micPlaybackSection.style.animation = '';
+                    }, 500);
                 }, 500);
                 
             } else {
                 throw new Error(result.error || 'Failed to stop recording');
             }
         } catch (error) {
-            console.error('Failed to stop recording:', error);
-            status.textContent = 'Recording failed to stop properly.';
+            console.error('❌ Failed to stop recording:', error);
+            status.textContent = `Recording failed to stop: ${error.message}`;
+            isRecording = false;
+            micRecordBtn.textContent = '🔴 Start Recording';
+            micRecordBtn.disabled = false;
         }
     }
 
@@ -491,21 +671,47 @@ function setupMicrophoneTest() {
             micPlayBtn.disabled = true;
             micPlayBtn.textContent = '🔊 Playing...';
             
+            console.log('🔊 Playing audio via IPC (cross-platform safe):', currentRecordingPath);
+            
+            // Use IPC to play via the improved AudioPlayer with WebM support
             const result = await ipcRenderer.invoke('play-first-run-recording', currentRecordingPath);
             
             if (result.success) {
-                // Re-enable button after a delay
+                console.log('✅ Audio playback started successfully');
+                // The AudioPlayer will handle the playback duration
                 setTimeout(() => {
                     micPlayBtn.disabled = false;
                     micPlayBtn.textContent = '🔊 Play Recording';
-                }, 3000);
+                }, 5000); // Default timeout, AudioPlayer should finish before this
             } else {
-                throw new Error(result.error || 'Failed to play recording');
+                console.error('❌ Audio playback failed:', result.error);
+                
+                // Show user-friendly error message
+                let errorMsg = result.error || 'Failed to play recording';
+                if (errorMsg.includes('WebM') || errorMsg.includes('format')) {
+                    errorMsg = 'Recording playback not supported. The recording was saved successfully though!';
+                }
+                
+                // Update button with error indication
+                micPlayBtn.textContent = '⚠️ Playback Error';
+                setTimeout(() => {
+                    micPlayBtn.disabled = false;
+                    micPlayBtn.textContent = '🔊 Try Again';
+                }, 2000);
+                
+                // Still allow user to continue since recording worked
+                console.log('ℹ️ Playback failed but recording was successful, user can continue');
             }
+            
         } catch (error) {
-            console.error('Playback failed:', error);
-            micPlayBtn.disabled = false;
-            micPlayBtn.textContent = '🔊 Play Recording';
+            console.error('❌ Playback request failed:', error);
+            
+            // Show user-friendly message
+            micPlayBtn.textContent = '⚠️ Playback Error';
+            setTimeout(() => {
+                micPlayBtn.disabled = false;
+                micPlayBtn.textContent = '🔊 Try Again';
+            }, 2000);
         }
     });
 
@@ -539,9 +745,25 @@ function setupMicrophoneTest() {
     });
 
     function resetToTestSection() {
+        // Clear any active timer
+        if (recordingTimer) {
+            clearTimeout(recordingTimer);
+            recordingTimer = null;
+        }
+        
+        isRecording = false;
+        
+        // Clear all animations to prevent conflicts
+        micPlaybackSection.style.animation = '';
+        micAdvancedSection.style.animation = '';
+        micTestSection.style.animation = '';
+        
+        // Reset section visibility
         micPlaybackSection.style.display = 'none';
         micAdvancedSection.style.display = 'none';
         micTestSection.style.display = 'block';
+        
+        // Reset UI state
         micRecordBtn.disabled = false;
         micRecordBtn.textContent = '🔴 Start Recording';
         status.textContent = '';
@@ -619,16 +841,32 @@ function setupMicrophoneTest() {
     // Enumerate devices helper
     async function populateDevices() {
         try {
+            // First, try to get permission to access devices
             await navigator.mediaDevices.getUserMedia({ audio: true }).then(s => s.getTracks().forEach(t => t.stop())).catch(() => {});
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const audioInputs = devices.filter(d => d.kind === 'audioinput');
+            
+            // Get devices from both web API and AudioManager
+            const [webDevices, audioManagerDevices] = await Promise.all([
+                navigator.mediaDevices.enumerateDevices(),
+                ipcRenderer.invoke('discover-audio-devices').catch(() => [])
+            ]);
+            
+            const audioInputs = webDevices.filter(d => d.kind === 'audioinput');
             
             deviceSelect.innerHTML = '';
+            
+            // Add auto-detect option first
             const autoOpt = document.createElement('option');
             autoOpt.value = 'auto';
             autoOpt.textContent = '🤖 Auto-detect (Recommended)';
             deviceSelect.appendChild(autoOpt);
             
+            // Add default option
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = 'default';
+            defaultOpt.textContent = '🔧 System Default';
+            deviceSelect.appendChild(defaultOpt);
+            
+            // Add discovered audio input devices
             audioInputs.forEach(dev => {
                 const o = document.createElement('option');
                 o.value = dev.deviceId;
@@ -636,57 +874,137 @@ function setupMicrophoneTest() {
                 deviceSelect.appendChild(o);
             });
             
+            // Set current selection based on AudioManager settings
+            try {
+                const currentDevice = await ipcRenderer.invoke('get-settings').then(settings => settings.MICROPHONE_DEVICE).catch(() => 'auto');
+                if (currentDevice && deviceSelect.querySelector(`option[value="${currentDevice}"]`)) {
+                    deviceSelect.value = currentDevice;
+                }
+            } catch (error) {
+                console.log('Could not load current device setting:', error);
+            }
+            
             advancedStatus.textContent = `Found ${audioInputs.length} audio device(s)`;
+            
+            // Add device change handler
+            deviceSelect.addEventListener('change', () => {
+                const selectedDevice = deviceSelect.value;
+                console.log('🎤 Device selection changed to:', selectedDevice);
+                
+                // Update the AudioManager setting
+                ipcRenderer.send('set-microphone-device', selectedDevice);
+                
+                // Update status
+                advancedStatus.textContent = `Selected: ${deviceSelect.options[deviceSelect.selectedIndex].text}`;
+            });
+            
         } catch (err) {
             console.error('Device enumeration failed', err);
             advancedStatus.textContent = 'Failed to discover audio devices';
+            
+            // Fallback: just add basic options
+            deviceSelect.innerHTML = '';
+            const autoOpt = document.createElement('option');
+            autoOpt.value = 'auto';
+            autoOpt.textContent = '🤖 Auto-detect';
+            deviceSelect.appendChild(autoOpt);
         }
     }
 
     refreshBtn.addEventListener('click', populateDevices);
 }
 
-// -------------------- TTS TEST --------------------
-function setupTtsTest() {
-    const playBtn = document.getElementById('ttsPlayBtn');
-    const status = document.getElementById('ttsStatus');
-    const continueBtn = document.getElementById('ttsContinueBtn');
-
-    if (playBtn.dataset.initialized) return; // Prevent multiple bindings
-    playBtn.dataset.initialized = 'true';
-
-    const sampleText = 'MetaKeyAI is a magical way to cast spells on your clipboard! This setup will help you configure everything quickly.';
-
-    playBtn.addEventListener('click', () => {
-        status.textContent = 'Generating audio...';
-        playBtn.disabled = true;
-        playBtn.textContent = '🔄 Playing...';
+// -------------------- SHORTCUTS TEST --------------------
+function setupShortcutsTest() {
+    // This function can be called to test and display shortcuts information
+    window.testShortcuts = async function() {
+        try {
+            const result = await ipcRenderer.invoke('test-first-run-shortcuts');
+            return result;
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    };
+    
+    // Auto-populate shortcuts information when shortcuts step is shown
+    const shortcutsStep = document.getElementById('step-shortcuts');
+    if (shortcutsStep) {
+        const shortcutsContainer = shortcutsStep.querySelector('.shortcuts-list') || 
+                                  document.createElement('div');
+        shortcutsContainer.className = 'shortcuts-list';
         
-        ipcRenderer.send('test-voice', { voice: 'nova', text: sampleText });
-        
-        status.textContent = 'Playing sample audio – did you hear it clearly?';
-        continueBtn.disabled = false;
-        
-        // Reset button after a delay
-        setTimeout(() => {
-            playBtn.disabled = false;
-            playBtn.textContent = '🔊 Play Sample Audio';
-        }, 5000);
-    });
-
-    continueBtn.addEventListener('click', () => {
-        nextStep();
-    });
+        // Test shortcuts and display them
+        window.testShortcuts().then(result => {
+            if (result.success && result.shortcuts) {
+                shortcutsContainer.innerHTML = '<h4>🎮 Available Shortcuts:</h4>';
+                
+                result.shortcuts.forEach(shortcut => {
+                    const shortcutItem = document.createElement('div');
+                    shortcutItem.className = 'shortcut-item';
+                    shortcutItem.style.cssText = `
+                        display: flex; 
+                        justify-content: space-between; 
+                        margin: 8px 0; 
+                        padding: 8px; 
+                        background: rgba(79, 172, 254, 0.1); 
+                        border-radius: 6px;
+                    `;
+                    
+                    shortcutItem.innerHTML = `
+                        <span>${shortcut.name || shortcut.key}</span>
+                        <kbd style="background: #444; color: #fff; padding: 2px 6px; border-radius: 3px; font-size: 12px;">
+                            ${shortcut.currentKey || shortcut.key}
+                        </kbd>
+                    `;
+                    
+                    shortcutsContainer.appendChild(shortcutItem);
+                });
+                
+                if (result.message) {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.style.cssText = 'margin-top: 16px; padding: 12px; background: rgba(255, 193, 7, 0.1); border-radius: 6px; color: #856404;';
+                    messageDiv.innerHTML = `ℹ️ ${result.message}`;
+                    shortcutsContainer.appendChild(messageDiv);
+                }
+                
+                // Add to shortcuts step if not already there
+                if (!shortcutsStep.contains(shortcutsContainer)) {
+                    const existingContent = shortcutsStep.querySelector('.step-content');
+                    if (existingContent) {
+                        existingContent.appendChild(shortcutsContainer);
+                    } else {
+                        shortcutsStep.appendChild(shortcutsContainer);
+                    }
+                }
+            }
+        }).catch(error => {
+            console.error('Failed to load shortcuts info:', error);
+        });
+    }
 }
+
+// Update the nextStep function to handle shortcuts testing
+const originalNextStep = nextStep;
+nextStep = function() {
+    // Call the original nextStep first
+    originalNextStep();
+    
+    // If we just moved to the shortcuts step, set it up
+    const stepId = steps[currentStep];
+    if (stepId === 'shortcuts') {
+        setupShortcutsTest();
+    }
+};
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     showStep(0);
     setupOptionHandlers();
+    setupApiKeyTest(); // Set up API key testing functionality
     
     // Add event listeners for buttons
     document.getElementById('startSetupBtn')?.addEventListener('click', startSetup);
-        document.getElementById('skipPythonBtn')?.addEventListener('click', skipPython);
+    document.getElementById('skipPythonBtn')?.addEventListener('click', skipPython);
     document.getElementById('continueModelsBtn')?.addEventListener('click', nextStep);
     document.getElementById('shortcutsNextBtn')?.addEventListener('click', nextStep);
     document.getElementById('finishSetupBtn')?.addEventListener('click', finishSetup);

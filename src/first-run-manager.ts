@@ -58,33 +58,10 @@ export class FirstRunManager {
       app.quit();
     });
 
-    // Audio device discovery handler (using web API approach)
-    ipcMain.handle('discover-audio-devices', async () => {
-      try {
-        // For the first-run setup, we'll rely on the web API in the renderer
-        // This is a fallback that provides basic device info
-        return [
-          { deviceId: 'default', label: 'Default Microphone' },
-          { deviceId: 'auto', label: 'Auto-detect' }
-        ];
-      } catch (error) {
-        console.error('Failed to discover audio devices:', error);
-        return [];
-      }
-    });
-
-    // Microphone device setting handler
-    ipcMain.on('set-microphone-device', (event, deviceId: string) => {
-      try {
-        // Save the selected microphone device
-        const audioSettings = this.userDataManager.loadAudioSettings() || {};
-        audioSettings.microphoneDevice = deviceId;
-        this.userDataManager.saveAudioSettings(audioSettings);
-        console.log(`🎤 Microphone device set to: ${deviceId}`);
-      } catch (error) {
-        console.error('Failed to set microphone device:', error);
-      }
-    });
+    // NOTE: Audio device handlers are now managed by AudioManager
+    // NOTE: Microphone device setting is handled by AudioManager
+    // NOTE: load-env and save-env are handled in setupEssentialIpcHandlers()
+    // NOTE: test-voice is handled in setupEssentialIpcHandlers()
 
     // Python setup handlers (specific to first-run setup)
     ipcMain.handle('check-python-setup', async () => {
@@ -148,9 +125,119 @@ export class FirstRunManager {
       }
     });
 
-    // Note: load-env and save-env are already handled in index.ts
-    // Note: load-audio-settings and save-audio-settings are already handled in index.ts
-    // Note: test-voice is already handled in index.ts
+    // First-run specific testing handlers
+    ipcMain.handle('test-first-run-microphone', async () => {
+      try {
+        console.log('🎤 Testing microphone for first-run setup...');
+        const audioManager = (global as any).audioManager;
+        if (!audioManager) {
+          return { success: false, error: 'Audio manager not available' };
+        }
+        
+        // Use the AudioManager's testMicrophoneDevice with first-run window preference
+        const currentDevice = audioManager.getMicrophoneDevice() || 'auto';
+        const testResult = await audioManager.testMicrophoneDevice(currentDevice, 'first-run');
+        
+        return {
+          success: testResult.success,
+          deviceId: currentDevice,
+          filePath: testResult.filePath,
+          error: testResult.error,
+          deviceInfo: testResult.deviceInfo
+        };
+      } catch (error) {
+        console.error('❌ First-run microphone test failed:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    });
+
+    ipcMain.handle('test-first-run-tts', async (event, { text, voice }: { text: string; voice: string }) => {
+      try {
+        console.log(`🔊 Testing TTS for first-run setup: voice=${voice}`);
+        
+        // Import the TTS function
+        const { callTextToSpeechApi } = require('./openai-api');
+        const config = require('./config').config;
+        
+        if (!config.OPENAI_API_KEY) {
+          return { success: false, error: 'OpenAI API key not configured' };
+        }
+        
+        const audioFilePath = await callTextToSpeechApi(text, voice);
+        if (!audioFilePath) {
+          return { success: false, error: 'Failed to generate audio' };
+        }
+        
+        // Play the audio using AudioManager
+        const audioManager = (global as any).audioManager;
+        if (audioManager) {
+          await audioManager.playAudioFile(audioFilePath);
+        }
+        
+        return { success: true, audioFile: audioFilePath };
+      } catch (error) {
+        console.error('❌ First-run TTS test failed:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    });
+
+    ipcMain.handle('test-first-run-api-key', async (event, apiKey: string) => {
+      try {
+        console.log('🔑 Testing API key for first-run setup...');
+        
+        // Simple validation - try to make a basic API call with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        const response = await fetch('https://api.openai.com/v1/models', {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        const isValid = response.ok;
+        
+        if (isValid) {
+          // Temporarily store the API key in config for testing
+          const config = require('./config').config;
+          config.OPENAI_API_KEY = apiKey;
+        }
+        
+        return { success: isValid, valid: isValid };
+      } catch (error) {
+        console.error('❌ API key test failed:', error);
+        return { success: false, valid: false, error: (error as Error).message };
+      }
+    });
+
+    ipcMain.handle('test-first-run-shortcuts', async () => {
+      try {
+        console.log('⌨️ Testing shortcuts for first-run setup...');
+        
+        const shortcutsManager = (global as any).shortcutsManager;
+        if (!shortcutsManager) {
+          // Shortcuts aren't initialized yet during first-run, that's expected
+          return { 
+            success: true, 
+            message: 'Shortcuts will be available after first-run setup completes',
+            shortcuts: [
+              { name: 'Voice Record', key: 'Ctrl+Alt+W' },
+              { name: 'Text-to-Speech', key: 'Ctrl+Alt+E' },
+              { name: 'Quick Edit', key: 'Ctrl+Alt+Q' },
+              { name: 'Clipboard History', key: 'Ctrl+Alt+C' }
+            ]
+          };
+        }
+        
+        const shortcuts = shortcutsManager.getShortcuts();
+        return { success: true, shortcuts };
+      } catch (error) {
+        console.error('❌ Shortcuts test failed:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    });
 
     // Window control handlers
     ipcMain.on('minimize-first-run-window', () => {

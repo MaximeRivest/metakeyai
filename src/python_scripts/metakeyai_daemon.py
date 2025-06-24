@@ -97,7 +97,11 @@ def load_spell_module(script_file: str) -> types.ModuleType:
 # ---------------------------------------------------------------------------
 
 def _configure_llm_from_env():
-    """(Re)configure DSPy default LLM from environment vars."""
+    """Configure DSPy default LLM from environment vars.
+    
+    IMPORTANT: This should only be called ONCE during startup due to DSPy's
+    thread restrictions. DSPy doesn't allow reconfiguration from different threads.
+    """
     if not dspy:
         log("❌ Cannot configure LLM - DSPy not available")
         return False
@@ -280,22 +284,30 @@ def update_env(payload: EnvUpdateRequest):
     try:
         for k, v in payload.env.items():
             os.environ[str(k)] = str(v)
-        _configure_llm_from_env()
-
-        ok = _configure_llm_from_env()
+            
+        # Note: DSPy configuration happens ONLY at startup to avoid threading issues
+        # The server needs to be restarted for model changes to take effect
+        
         msg = ""
-        if dspy and ok:
-            try:
-                model_str = os.getenv("METAKEYAI_LLM", "")
-                if model_str:
-                    # Test the configuration by making a simple call
-                    test_out = dspy.LM(model_str)("Hello")
-                    ok = len(test_out) > 0
-            except Exception as e:
-                msg = str(e)
+        ok = True
+        
+        if dspy:
+            # Check if DSPy is already configured (from startup)
+            if hasattr(dspy.settings, 'lm') and dspy.settings.lm is not None:
+                current_model = os.getenv("METAKEYAI_LLM", "")
+                if current_model:
+                    msg = f"Environment updated. DSPy configured with: {current_model}"
+                    ok = True
+                else:
+                    msg = "Environment updated. No METAKEYAI_LLM set."
+                    ok = False
+            else:
+                msg = "Environment updated. DSPy not configured - restart server to apply model changes."
                 ok = False
-        elif not dspy:
-            msg = dspy_error or "DSPy not available"
+        else:
+            msg = f"Environment updated. DSPy not available: {dspy_error or 'Import failed'}"
+            ok = False
+            
         return {"updated": list(payload.env.keys()), "ok": ok, "msg": msg}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

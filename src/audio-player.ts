@@ -5,7 +5,7 @@ import { EventEmitter } from 'events';
 
 export class AudioPlayer extends EventEmitter {
   private currentProcess: ChildProcess | null = null;
-  private playbackMethod: 'sox' | 'powershell' | 'ffplay' | 'vlc' | 'windows-media' | null = null;
+  private playbackMethod: 'ffplay' | 'vlc' | 'powershell' | 'windows-media' | 'sox' | null = null;
   private isPlaying = false;
 
   constructor() {
@@ -17,16 +17,17 @@ export class AudioPlayer extends EventEmitter {
     console.log('🔍 Detecting available audio playback methods...');
     
     // Test methods in order of preference for each platform
+    // FFplay and VLC handle WebM/Opus better than sox
     const methods = process.platform === 'win32' ? [
+      { name: 'ffplay', test: () => this.testFfplay() },
+      { name: 'vlc', test: () => this.testVlc() },
       { name: 'powershell', test: () => this.testPowerShellPlayback() },
       { name: 'windows-media', test: () => this.testWindowsMediaPlayer() },
+      { name: 'sox', test: () => this.testSox() }
+    ] : [
       { name: 'ffplay', test: () => this.testFfplay() },
       { name: 'vlc', test: () => this.testVlc() },
       { name: 'sox', test: () => this.testSox() }
-    ] : [
-      { name: 'sox', test: () => this.testSox() },
-      { name: 'ffplay', test: () => this.testFfplay() },
-      { name: 'vlc', test: () => this.testVlc() }
     ];
 
     for (const method of methods) {
@@ -301,19 +302,48 @@ export class AudioPlayer extends EventEmitter {
 
     console.log(`🔊 Playing audio file: ${filePath} using ${this.playbackMethod}`);
 
+    // Check if file is WebM and playback method is sox (which doesn't support WebM)
+    const isWebM = filePath.toLowerCase().endsWith('.webm');
+    if (isWebM && this.playbackMethod === 'sox') {
+      console.log('⚠️ WebM file detected with sox - will try other methods first');
+      
+      // Try alternative methods for WebM
+      const webmMethods = ['ffplay', 'vlc', 'powershell'];
+      for (const method of webmMethods) {
+        try {
+          console.log(`🧪 Trying ${method} for WebM playback...`);
+          if (method === 'ffplay' && await this.testFfplay()) {
+            await this.playWithFfplay(filePath);
+            return;
+          } else if (method === 'vlc' && await this.testVlc()) {
+            await this.playWithVlc(filePath);
+            return;
+          } else if (method === 'powershell' && process.platform === 'win32' && await this.testPowerShellPlayback()) {
+            await this.playWithPowerShell(filePath);
+            return;
+          }
+        } catch (error) {
+          console.log(`❌ ${method} failed for WebM:`, error.message);
+        }
+      }
+      
+      // If all else fails, inform about the limitation
+      throw new Error('WebM files are not supported by sox. Please install FFmpeg or VLC for WebM playback.');
+    }
+
     try {
       switch (this.playbackMethod) {
-        case 'powershell':
-          await this.playWithPowerShell(filePath);
-          break;
-        case 'windows-media':
-          await this.playWithWindowsMedia(filePath);
-          break;
         case 'ffplay':
           await this.playWithFfplay(filePath);
           break;
         case 'vlc':
           await this.playWithVlc(filePath);
+          break;
+        case 'powershell':
+          await this.playWithPowerShell(filePath);
+          break;
+        case 'windows-media':
+          await this.playWithWindowsMedia(filePath);
           break;
         case 'sox':
           await this.playWithSox(filePath);
@@ -323,6 +353,15 @@ export class AudioPlayer extends EventEmitter {
       }
     } catch (error) {
       console.error(`❌ Audio playback failed with ${this.playbackMethod}:`, error);
+      
+      // If it's a WebM file and the error mentions format, suggest alternatives
+      if (isWebM && error.message.includes('format')) {
+        const betterError = new Error(`WebM playback failed with ${this.playbackMethod}. Please install FFmpeg or VLC for better WebM support.`);
+        this.emit('error', betterError);
+        throw betterError;
+      }
+      
+      this.emit('error', error);
       throw error;
     }
   }

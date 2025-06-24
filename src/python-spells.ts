@@ -635,13 +635,13 @@ export class PythonSpellCaster {
     switch (spell.outputFormat) {
       case 'replace':
         clipboard.writeText(output);
-        console.log('📋 ✨ Replaced clipboard with spell output');
+        console.log('📋 🔵 Replaced clipboard with spell output');
         break;
         
       case 'append': {
         const currentClipboard = clipboard.readText();
         clipboard.writeText(currentClipboard + '\n\n' + output);
-        console.log('📋 ✨ Appended spell output to clipboard');
+        console.log('📋 🔵 Appended spell output to clipboard');
         break;
       }
         
@@ -649,37 +649,75 @@ export class PythonSpellCaster {
       case 'json':
       default:
         clipboard.writeText(output);
-        console.log('📋 ✨ Copied spell output to clipboard');
+        console.log('📋 🔵 Copied spell output to clipboard');
         break;
     }
     
-    // Trigger magical feedback by sending IPC to main process
+    // Trigger magical blue orb feedback by sending IPC to all windows
     const windows = BrowserWindow.getAllWindows();
-    const mainWindow = windows.find(w => w.webContents.getURL().includes('pastille'));
     
-    if (mainWindow && output) {
-      // Send spell completion to trigger magical feedback
-      mainWindow.webContents.send('show-spell-result', output);
-      console.log('✨ Triggered magical spell completion feedback');
+    // Send to pastille for blue orb animation
+    const pastilleWindow = windows.find(w => w.webContents.getURL().includes('pastille'));
+    if (pastilleWindow && output) {
+      pastilleWindow.webContents.send('spell-success-magic', {
+        spellName: spell.name,
+        output: output.substring(0, 200),
+        timestamp: Date.now()
+      });
+      console.log('🔵 Triggered magical blue orb spell completion feedback');
     }
+    
+    // Send to spell book for celebration orbs
+    const spellBookWindow = windows.find(w => w.webContents.getURL().includes('spell-book'));
+    if (spellBookWindow && output) {
+      spellBookWindow.webContents.send('spell-success-magic', {
+        spellName: spell.name,
+        output: output.substring(0, 200),
+        timestamp: Date.now()
+      });
+    }
+    
+    // Send to any other windows
+    windows.forEach(window => {
+      if (!window.webContents.getURL().includes('pastille') && 
+          !window.webContents.getURL().includes('spell-book')) {
+        window.webContents.send('spell-success-magic', {
+          spellName: spell.name,
+          output: output.substring(0, 200),
+          timestamp: Date.now()
+        });
+      }
+    });
   }
 
   private showSpellResult(result: SpellResult): void {
     const windows = BrowserWindow.getAllWindows();
+    
+    // Send the result to all windows for handling
     windows.forEach(window => {
       window.webContents.send('spell-result', result);
+      
+      // Also trigger blue orb magic for successful spells
+      if (result.success) {
+        window.webContents.send('spell-success-magic', {
+          spellName: result.spellName,
+          output: result.output.substring(0, 200),
+          timestamp: Date.now(),
+          executionTime: result.executionTime
+        });
+      }
     });
 
-    // Also show system notification for quick feedback
+    // Show system notification with blue orb branding
     if (result.success) {
       new Notification({
-        title: `✨ ${result.spellName}`,
-        body: `Spell completed in ${result.executionTime}ms`,
+        title: `🔵 ${result.spellName}`,
+        body: `Spell completed in ${result.executionTime}ms\n${result.output.substring(0, 100)}${result.output.length > 100 ? '...' : ''}`,
         silent: true
       }).show();
     } else {
       new Notification({
-        title: `❌ ${result.spellName} Failed`,
+        title: `🔵 ${result.spellName} Failed`,
         body: result.error || 'Spell casting failed',
         silent: false
       }).show();
@@ -688,10 +726,20 @@ export class PythonSpellCaster {
 
   private showSpellError(spellName: string, error: string): void {
     new Notification({
-      title: `❌ ${spellName} Failed`,
+      title: `🔵 ${spellName} Failed`,
       body: error,
       silent: false
     }).show();
+    
+    // Send error to windows for blue orb error indication
+    const windows = BrowserWindow.getAllWindows();
+    windows.forEach(window => {
+      window.webContents.send('spell-error-magic', {
+        spellName,
+        error,
+        timestamp: Date.now()
+      });
+    });
   }
 
   private async registerDefaultSpells(): Promise<void> {

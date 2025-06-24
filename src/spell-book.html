@@ -139,13 +139,16 @@
 
     .sparkle {
       position: absolute;
-      width: 6px;
-      height: 6px;
-      background: linear-gradient(45deg, var(--color-primary), var(--color-primary-end));
-      border-radius: var(--radius-round);
+      width: 8px;
+      height: 8px;
+      background: radial-gradient(circle, var(--color-primary) 0%, var(--color-primary-end) 70%, transparent 100%);
+      border-radius: 50%;
       animation: sparkle-float 8s ease-in-out infinite;
       opacity: 0;
-      box-shadow: 0 0 10px var(--color-primary);
+      box-shadow: 
+        0 0 20px var(--color-primary),
+        0 0 40px var(--color-primary-end),
+        inset 0 0 10px rgba(255,255,255,0.3);
     }
 
     .sparkle:nth-child(1) { top: 20%; left: 10%; animation-delay: 0s; }
@@ -158,19 +161,30 @@
     @keyframes sparkle-float {
       0%, 100% { 
         opacity: 0;
-        transform: translateY(0) scale(0.5) rotate(0deg);
+        transform: translateY(0) scale(0.3);
+        box-shadow: 0 0 5px var(--color-primary);
       }
-      25% {
+      20% {
         opacity: 1;
-        transform: translateY(-20px) scale(1) rotate(90deg);
+        transform: translateY(-15px) scale(1);
+        box-shadow: 
+          0 0 20px var(--color-primary),
+          0 0 40px var(--color-primary-end);
       }
       50% {
         opacity: 1;
-        transform: translateY(-40px) scale(1.2) rotate(180deg);
+        transform: translateY(-30px) scale(1.3);
+        box-shadow: 
+          0 0 30px var(--color-primary),
+          0 0 60px var(--color-primary-end),
+          0 0 80px rgba(79, 172, 254, 0.3);
       }
-      75% {
+      80% {
         opacity: 1;
-        transform: translateY(-30px) scale(1) rotate(270deg);
+        transform: translateY(-20px) scale(0.8);
+        box-shadow: 
+          0 0 15px var(--color-primary),
+          0 0 30px var(--color-primary-end);
       }
     }
 
@@ -594,7 +608,7 @@
   
   <div class="container">
     <div class="header">
-      <h1>🧙‍♂️ Python Spell Book</h1>
+      <h1>🔵 MetaKeyAI Spell Book</h1>
       <p>Cast powerful Python spells on your clipboard data with keyboard shortcuts</p>
     </div>
 
@@ -672,6 +686,7 @@
         const slot = quickSlots[i];
         const slotElement = document.createElement('div');
         slotElement.className = slot ? 'quick-slot' : 'quick-slot empty';
+        slotElement.style.setProperty('--delay', i);
         
         if (slot) {
           slotElement.innerHTML = `
@@ -707,6 +722,7 @@
       spells.forEach(spell => {
         const spellElement = document.createElement('div');
         spellElement.className = 'spell-card';
+        spellElement.style.setProperty('--delay', Math.floor(Math.random() * 10));
         
         spellElement.innerHTML = `
           <div class="spell-header">
@@ -843,6 +859,11 @@
 
          // Notification system
      function showNotification(type, title, message) {
+       // Add magical sparkles for success
+       if (type === 'success') {
+         createMagicalSparkles();
+       }
+       
        const notificationHtml = `
          <div style="
            position: fixed; 
@@ -856,9 +877,11 @@
            z-index: 2000;
            max-width: 400px;
            border: 1px solid ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+           backdrop-filter: blur(20px);
+           animation: ${type === 'success' ? 'magicalAppear' : 'slideIn'} 0.5s ease-out;
          ">
            <div style="font-weight: bold; margin-bottom: 5px;">
-             ${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'} ${title}
+             ${type === 'success' ? '✨' : type === 'error' ? '❌' : 'ℹ️'} ${title}
            </div>
            <div style="font-size: 0.9rem; white-space: pre-wrap;">
              ${message}
@@ -877,6 +900,119 @@
          }
        }, 5000);
      }
+
+     // Create magical blue sparkles animation
+     function createMagicalSparkles() {
+       const sparkleContainer = document.createElement('div');
+       sparkleContainer.style.cssText = `
+         position: fixed;
+         top: 0;
+         left: 0;
+         width: 100%;
+         height: 100%;
+         pointer-events: none;
+         z-index: 9999;
+       `;
+       
+       // Create multiple magical blue orbs
+       for (let i = 0; i < 15; i++) {
+         const sparkle = document.createElement('div');
+         const size = Math.random() * 12 + 6;
+         sparkle.style.cssText = `
+           position: absolute;
+           width: ${size}px;
+           height: ${size}px;
+           background: radial-gradient(circle, var(--color-primary) 0%, var(--color-primary-end) 60%, transparent 100%);
+           border-radius: 50%;
+           left: ${Math.random() * 100}%;
+           top: ${Math.random() * 100}%;
+           animation: magicalOrb ${Math.random() * 3 + 2}s ease-out forwards;
+           box-shadow: 
+            0 0 ${size * 2}px var(--color-primary),
+            0 0 ${size * 4}px var(--color-primary-end),
+            inset 0 0 ${size / 2}px rgba(255,255,255,0.4);
+         `;
+         sparkleContainer.appendChild(sparkle);
+       }
+       
+       document.body.appendChild(sparkleContainer);
+       
+       // Remove after animation
+       setTimeout(() => {
+         if (document.body.contains(sparkleContainer)) {
+           document.body.removeChild(sparkleContainer);
+         }
+       }, 5000);
+     }
+
+     // Add magical animation keyframes
+     const magicalStyles = document.createElement('style');
+     magicalStyles.textContent = `
+       @keyframes magicalOrb {
+         0% {
+           opacity: 0;
+           transform: scale(0) translateY(0);
+           box-shadow: 0 0 5px var(--color-primary);
+         }
+         25% {
+           opacity: 1;
+           transform: scale(1) translateY(-30px);
+           box-shadow: 
+            0 0 20px var(--color-primary),
+            0 0 40px var(--color-primary-end);
+         }
+         50% {
+           opacity: 1;
+           transform: scale(1.3) translateY(-80px);
+           box-shadow: 
+            0 0 30px var(--color-primary),
+            0 0 60px var(--color-primary-end),
+            0 0 90px rgba(79, 172, 254, 0.3);
+         }
+         75% {
+           opacity: 0.8;
+           transform: scale(0.9) translateY(-120px);
+           box-shadow: 
+            0 0 15px var(--color-primary),
+            0 0 30px var(--color-primary-end);
+         }
+         100% {
+           opacity: 0;
+           transform: scale(0.3) translateY(-150px);
+           box-shadow: 0 0 5px var(--color-primary);
+         }
+       }
+       
+       @keyframes magicalAppear {
+         0% {
+           opacity: 0;
+           transform: translateX(100px) scale(0.8);
+           filter: blur(10px);
+         }
+         50% {
+           opacity: 1;
+           transform: translateX(10px) scale(1.05);
+           filter: blur(2px);
+         }
+         100% {
+           opacity: 1;
+           transform: translateX(0) scale(1);
+           filter: blur(0);
+         }
+       }
+       
+       @keyframes slideIn {
+         0% {
+           opacity: 0;
+           transform: translateX(50px);
+         }
+         100% {
+           opacity: 1;
+           transform: translateX(0);
+         }
+       }
+     `;
+     document.head.appendChild(magicalStyles);
 
      // Spell Editor Functions
      function openSpellEditor(spellId = null) {
@@ -1227,6 +1363,22 @@
     // Listen for spell results
     ipcRenderer.on('spell-result', (event, result) => {
       console.log('Spell result received:', result);
+    });
+
+    // Listen for magical blue orb success events
+    ipcRenderer.on('spell-success-magic', (event, data) => {
+      console.log('🔵 Magical success event received:', data);
+      createMagicalSparkles();
+      
+      // Enhanced notification with blue orb magic
+      showNotification('success', `🔵 ${data.spellName}`, 
+        `Spell completed successfully!\nOutput: ${data.output}${data.output.length >= 200 ? '...' : ''}`);
+    });
+
+    // Listen for magical blue orb error events  
+    ipcRenderer.on('spell-error-magic', (event, data) => {
+      console.log('🔵 Magical error event received:', data);
+      showNotification('error', `🔵 ${data.spellName}`, data.error);
     });
   </script>
 </body>

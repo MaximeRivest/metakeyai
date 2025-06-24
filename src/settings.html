@@ -82,6 +82,25 @@
             background-clip: text;
             text-shadow: 0 0 30px rgba(79, 172, 254, 0.3);
             animation: shimmerText 3s ease-in-out infinite;
+            position: relative;
+        }
+
+        .header h1::before {
+            content: '🔵';
+            margin-right: 0.5rem;
+            filter: drop-shadow(0 0 15px var(--color-primary));
+            animation: orbPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes orbPulse {
+            0%, 100% { 
+                transform: scale(1);
+                filter: drop-shadow(0 0 15px var(--color-primary));
+            }
+            50% { 
+                transform: scale(1.1);
+                filter: drop-shadow(0 0 25px var(--color-primary)) drop-shadow(0 0 35px var(--color-primary-end));
+            }
         }
 
         @keyframes shimmerText {
@@ -148,6 +167,19 @@
             align-items: center;
             gap: var(--space-md);
             color: var(--text-primary);
+            background: var(--gradient-primary);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: shimmerTitle 4s ease-in-out infinite;
+            position: relative;
+            z-index: 2;
+        }
+
+        @keyframes shimmerTitle {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
         }
 
         .section-description {
@@ -155,10 +187,14 @@
             color: var(--text-muted);
             margin-bottom: var(--space-lg);
             line-height: 1.6;
+            position: relative;
+            z-index: 2;
         }
 
         .form-group {
             margin-bottom: var(--space-lg);
+            position: relative;
+            z-index: 2;
         }
 
         .form-group:last-child {
@@ -171,6 +207,10 @@
             font-weight: 500;
             margin-bottom: var(--space-sm);
             color: var(--text-secondary);
+            background: linear-gradient(45deg, var(--text-secondary), var(--color-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .form-select,
@@ -184,6 +224,8 @@
             font-size: 0.9rem;
             font-family: inherit;
             transition: var(--transition-fast);
+            backdrop-filter: blur(10px);
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
         }
 
         .form-select:focus,
@@ -192,6 +234,7 @@
             border-color: var(--color-primary);
             background: var(--glass-light);
             box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.2);
+            transform: translateY(-2px);
         }
 
         .form-select option {
@@ -232,12 +275,46 @@
             justify-content: center;
             gap: var(--space-xs);
             font-family: inherit;
+            position: relative;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            backdrop-filter: blur(10px);
+            background-size: 200% 200%;
+            animation: gradientShift 3s ease-in-out infinite;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+            transition: all 0.6s ease;
+            transform: translate(-50%, -50%);
         }
 
         .btn:hover {
             transform: translateY(-2px);
             box-shadow: var(--shadow-primary-hover);
             animation: magicalGlow 2s ease-in-out infinite;
+            scale: 1.05;
+        }
+
+        .btn:hover::after {
+            width: 300px;
+            height: 300px;
+        }
+
+        .btn:active {
+            transform: translateY(0) scale(0.98);
         }
 
         @keyframes magicalGlow {
@@ -247,11 +324,6 @@
             50% { 
                 box-shadow: 0 0 25px rgba(79, 172, 254, 0.6), 0 0 40px rgba(79, 172, 254, 0.3);
             }
-        }
-
-        .btn.secondary {
-            background: var(--glass-medium);
-            box-shadow: var(--shadow-small);
         }
 
         .btn::before {
@@ -269,19 +341,28 @@
             left: 100%;
         }
 
+        .btn.secondary {
+            background: var(--glass-medium);
+            box-shadow: var(--shadow-small);
+        }
+
         .btn.secondary:hover {
             background: var(--glass-light);
             box-shadow: var(--shadow-medium);
             transform: translateY(-1px);
+            scale: 1.02;
         }
 
         .btn.primary {
             background: var(--color-success);
             border-color: var(--color-success);
+            background: linear-gradient(135deg, var(--color-success), #34d399);
+            box-shadow: 0 4px 15px rgba(52, 211, 153, 0.4);
         }
 
         .btn.primary:hover {
             background: var(--color-success-hover);
+            box-shadow: 0 6px 20px rgba(52, 211, 153, 0.6);
         }
 
         .btn:disabled {
@@ -591,13 +672,16 @@
 
         .sparkle {
             position: absolute;
-            width: 6px;
-            height: 6px;
-            background: linear-gradient(45deg, var(--color-primary), var(--color-primary-end));
-            border-radius: var(--radius-round);
+            width: 8px;
+            height: 8px;
+            background: radial-gradient(circle, var(--color-primary) 0%, var(--color-primary-end) 70%, transparent 100%);
+            border-radius: 50%;
             animation: sparkle-float 8s ease-in-out infinite;
             opacity: 0;
-            box-shadow: 0 0 10px var(--color-primary);
+            box-shadow: 
+                0 0 20px var(--color-primary),
+                0 0 40px var(--color-primary-end),
+                inset 0 0 8px rgba(255,255,255,0.3);
         }
 
         .sparkle:nth-child(1) { top: 20%; left: 10%; animation-delay: 0s; }
@@ -610,19 +694,30 @@
         @keyframes sparkle-float {
             0%, 100% { 
                 opacity: 0;
-                transform: translateY(0) scale(0.5) rotate(0deg);
+                transform: translateY(0) scale(0.3);
+                box-shadow: 0 0 8px var(--color-primary);
             }
-            25% {
+            20% {
                 opacity: 1;
-                transform: translateY(-20px) scale(1) rotate(90deg);
+                transform: translateY(-15px) scale(1);
+                box-shadow: 
+                    0 0 20px var(--color-primary),
+                    0 0 40px var(--color-primary-end);
             }
             50% {
                 opacity: 1;
-                transform: translateY(-40px) scale(1.2) rotate(180deg);
+                transform: translateY(-30px) scale(1.2);
+                box-shadow: 
+                    0 0 25px var(--color-primary),
+                    0 0 50px var(--color-primary-end),
+                    0 0 70px rgba(79, 172, 254, 0.3);
             }
-            75% {
+            80% {
                 opacity: 1;
-                transform: translateY(-30px) scale(1) rotate(270deg);
+                transform: translateY(-20px) scale(0.8);
+                box-shadow: 
+                    0 0 15px var(--color-primary),
+                    0 0 30px var(--color-primary-end);
             }
         }
 
@@ -702,6 +797,7 @@
 
         <!-- Speech-to-Text -->
         <div class="section">
+            <div class="section-icon">🗣️</div>
             <div class="section-title">🗣️ Speech-to-Text</div>
             <div class="section-description">
                 Configure your OpenAI credentials and model for voice transcription (Ctrl+Alt+W).
@@ -733,6 +829,7 @@
 
         <!-- Text-to-Speech -->
         <div class="section">
+            <div class="section-icon">🔊</div>
             <div class="section-title">🔊 Text-to-Speech</div>
             <div class="section-description">
                 Configure voice settings for the text-to-speech feature (Ctrl+Alt+E).
@@ -763,6 +860,7 @@
 
         <!-- Microphone Settings -->
         <div class="section">
+            <div class="section-icon">🎤</div>
             <div class="section-title">🎤 Microphone</div>
             <div class="section-description">
                 Configure your microphone for voice recording (Ctrl+Alt+W). MetaKeyAI will auto-detect your microphone, but you can manually select a specific device if needed.
@@ -802,6 +900,7 @@
 
         <!-- Python Setup -->
         <div class="section" id="python-setup-section">
+            <div class="section-icon">🐍</div>
             <div class="section-title">🐍 Python Setup</div>
             <div class="section-description">
                 Set up Python for AI spells and quick edit features. Choose automatic setup with UV or use your custom Python installation.
@@ -870,6 +969,7 @@
 
         <!-- Environments & LLM -->
         <div class="section" id="env-section">
+            <div class="section-icon">🔑</div>
             <div class="section-title">🔑 Environments &amp; LLM</div>
             <p class="section-description">
                 Define environment variables (API keys, BASE_URL, etc.) used by the Python backend. <br/>
@@ -901,6 +1001,7 @@
 
         <!-- Keyboard Shortcuts Configuration -->
         <div class="section" id="shortcuts-section">
+            <div class="section-icon">⌨️</div>
             <div class="section-title">⌨️ Keyboard Shortcuts</div>
             <div class="section-description">
                 Customize keyboard shortcuts for all MetaKeyAI features. Click on any shortcut to change it.

@@ -128,6 +128,7 @@ class PastilleRenderer {
     // Recording lifecycle
     pastilleIpcRenderer.on('start-recording', (_: any, msg: string) => {
       this.startRecording(msg);
+      this.setIndicatorState('recording');
     });
 
     pastilleIpcRenderer.on('audio-data', (_: any, data: Buffer) => {
@@ -136,6 +137,7 @@ class PastilleRenderer {
 
     pastilleIpcRenderer.on('show-processing', (_: any, msg: string) => {
       this.showProcessing(msg);
+      this.setIndicatorState('processing');
     });
 
     pastilleIpcRenderer.on('show-spell-launch', (_: any, message: string) => {
@@ -158,6 +160,31 @@ class PastilleRenderer {
       if (e.target === this.backdrop) {
         this.collapse();
       }
+    });
+
+    // Listen for magical blue orb success events
+    pastilleIpcRenderer.on('spell-success-magic', (_: any, data: { spellName: string, output: string, timestamp: number }) => {
+      console.log('🔵 Pastille received magical success event:', data);
+      
+      // Show success message with blue orb
+      this.showMessage(`🔵 ${data.spellName}: ${data.output.substring(0, 80)}${data.output.length > 80 ? '...' : ''}`);
+      
+      // Trigger blue orb celebration animation
+      this.triggerBlueCelebration();
+      
+      // Set indicator to celebratory blue state
+      this.setIndicatorState('celebration');
+    });
+
+    // Listen for magical blue orb error events
+    pastilleIpcRenderer.on('spell-error-magic', (_: any, data: { spellName: string, error: string, timestamp: number }) => {
+      console.log('🔵 Pastille received magical error event:', data);
+      
+      // Show error message with blue orb
+      this.showMessage(`🔵 ${data.spellName} Error: ${data.error}`);
+      
+      // Set indicator to error blue state  
+      this.setIndicatorState('error');
     });
   }
 
@@ -352,7 +379,7 @@ class PastilleRenderer {
     // Update status based on current state
     if (this.isRecording) {
       this.controlStatus.textContent = 'Recording...';
-      this.controlIndicator.className = 'control-indicator recording';
+      this.setIndicatorState('recording');
     } else if (this.processingInterval) {
       this.controlStatus.textContent = 'Processing...';
       this.controlIndicator.className = 'control-indicator processing';
@@ -589,9 +616,6 @@ class PastilleRenderer {
     // Clear any processing animation
     this.clearProcessing();
     
-    // Create magical stardust effect
-    this.createStardustEffect();
-    
     // Ensure result is a string - handle different input types
     let resultText: string;
     if (typeof result === 'string') {
@@ -606,13 +630,15 @@ class PastilleRenderer {
     // Update collapsed state with magical styling
     this.waveCanvas.classList.add('hidden');
     this.contentElement.textContent = resultText.substring(0, 100) + (resultText.length > 100 ? '...' : '');
-    this.contentElement.style.color = '#4caf50'; // Green for success
-    this.contentElement.style.textShadow = '0 0 10px rgba(76, 175, 80, 0.6)'; // Magical glow
+    this.contentElement.style.color = 'var(--color-primary)'; // Blue for success
     this.counterElement.textContent = `✨ Spell completed (${resultText.length} chars)`;
     
-    // Add magical pulsing effect to the pastille
-    this.pastilleElement.style.boxShadow = '0 8px 32px rgba(76, 175, 80, 0.4), 0 0 20px rgba(76, 175, 80, 0.3)';
-    this.pastilleElement.style.borderColor = 'rgba(76, 175, 80, 0.5)';
+    // Add magical blue pulsing effect to the pastille
+    this.pastilleElement.style.boxShadow = '0 8px 32px var(--color-primary), 0 0 20px var(--color-primary-end)';
+    this.pastilleElement.style.borderColor = 'var(--color-primary)';
+    
+    // Add sweeping blue effect through the text
+    this.createSweepingBlueEffect();
     
     // Update expanded state
     this.controlWaveform.classList.add('hidden');
@@ -623,60 +649,59 @@ class PastilleRenderer {
     // Reset magical effects after a few seconds
     setTimeout(() => {
       this.contentElement.style.color = '';
-      this.contentElement.style.textShadow = '';
       this.pastilleElement.style.boxShadow = '';
       this.pastilleElement.style.borderColor = '';
     }, 3000);
   }
 
-  private createStardustEffect() {
-    // Create multiple stardust particles that float away from the pastille
-    const colors = ['#FFD700', '#FFA500', '#FF69B4', '#9370DB', '#00CED1'];
-    const particles = 12;
+  private createSweepingBlueEffect() {
+    // Create a sweeping blue light effect that moves across the content text
+    const contentRect = this.contentElement.getBoundingClientRect();
     
-    for (let i = 0; i < particles; i++) {
-      setTimeout(() => {
-        const star = document.createElement('div');
-        star.innerHTML = '✨';
-        star.style.position = 'fixed';
-        star.style.fontSize = `${Math.random() * 8 + 12}px`;
-        star.style.color = colors[Math.floor(Math.random() * colors.length)];
-        star.style.pointerEvents = 'none';
-        star.style.zIndex = '10000';
-        star.style.textShadow = '0 0 6px currentColor';
-        
-        // Start from pastille center
-        const pastilleRect = this.pastilleElement.getBoundingClientRect();
-        const startX = pastilleRect.left + pastilleRect.width / 2;
-        const startY = pastilleRect.top + pastilleRect.height / 2;
-        
-        star.style.left = `${startX}px`;
-        star.style.top = `${startY}px`;
-        
-        document.body.appendChild(star);
-        
-        // Animate the stardust flying away
-        const angle = (Math.PI * 2 * i) / particles + Math.random() * 0.5;
-        const distance = 100 + Math.random() * 100;
-        const duration = 1000 + Math.random() * 500;
-        
-        star.animate([
-          {
-            transform: 'translate(0, 0) scale(0.5) rotate(0deg)',
-            opacity: '1'
-          },
-          {
-            transform: `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px) scale(1.2) rotate(360deg)`,
-            opacity: '0'
-          }
-        ], {
-          duration: duration,
-          easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-        }).addEventListener('finish', () => {
-          document.body.removeChild(star);
-        });
-      }, i * 50); // Stagger the particle creation
-    }
+    // Create the sweeping light element
+    const sweep = document.createElement('div');
+    sweep.style.position = 'fixed';
+    sweep.style.top = `${contentRect.top}px`;
+    sweep.style.left = `${contentRect.left - 20}px`; // Start slightly before
+    sweep.style.width = '20px';
+    sweep.style.height = `${contentRect.height}px`;
+    sweep.style.background = 'linear-gradient(90deg, transparent, var(--color-primary), var(--color-primary-end), transparent)';
+    sweep.style.pointerEvents = 'none';
+    sweep.style.zIndex = '9999';
+    sweep.style.opacity = '0.8';
+    sweep.style.filter = 'blur(1px)';
+    sweep.style.boxShadow = '0 0 20px var(--color-primary), 0 0 40px var(--color-primary-end)';
+    
+    document.body.appendChild(sweep);
+    
+    // Animate the sweep across the text
+    const sweepDistance = contentRect.width + 40; // Content width plus padding
+    
+    sweep.animate([
+      {
+        transform: 'translateX(0px)',
+        opacity: '0'
+      },
+      {
+        transform: `translateX(${sweepDistance * 0.2}px)`,
+        opacity: '0.8'
+      },
+      {
+        transform: `translateX(${sweepDistance * 0.8}px)`,
+        opacity: '0.8'
+      },
+      {
+        transform: `translateX(${sweepDistance}px)`,
+        opacity: '0'
+      }
+    ], {
+      duration: 1000,
+      easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+    }).addEventListener('finish', () => {
+      if (document.body.contains(sweep)) {
+        document.body.removeChild(sweep);
+      }
+    });
   }
 
   private applyFontSize() {
@@ -847,6 +872,117 @@ class PastilleRenderer {
     this.charCount.textContent = `${charCount} character${charCount !== 1 ? 's' : ''}`;
     this.wordCount.textContent = `${wordCount} word${wordCount !== 1 ? 's' : ''}`;
     this.lineCount.textContent = `${lineCount} line${lineCount !== 1 ? 's' : ''}`;
+  }
+
+  // Function to trigger blue orb celebration
+  private triggerBlueCelebration() {
+    // Create celebration blue orbs
+    const pastilleElement = document.getElementById('pastille');
+    if (!pastilleElement) return;
+    
+    const rect = pastilleElement.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    // Create 8 celebration orbs that burst outward
+    for (let i = 0; i < 8; i++) {
+      const orb = document.createElement('div');
+      const angle = (i / 8) * 2 * Math.PI;
+      const distance = 100 + Math.random() * 50;
+      const size = 8 + Math.random() * 6;
+      
+      orb.style.cssText = `
+        position: fixed;
+        width: ${size}px;
+        height: ${size}px;
+        background: radial-gradient(circle, var(--color-primary) 0%, var(--color-primary-end) 70%, transparent 100%);
+        border-radius: 50%;
+        left: ${centerX}px;
+        top: ${centerY}px;
+        pointer-events: none;
+        z-index: 10000;
+        box-shadow: 
+          0 0 ${size * 2}px var(--color-primary),
+          0 0 ${size * 4}px var(--color-primary-end);
+        animation: celebrationBurst 2s ease-out forwards;
+        --target-x: ${Math.cos(angle) * distance}px;
+        --target-y: ${Math.sin(angle) * distance}px;
+      `;
+      
+      document.body.appendChild(orb);
+      
+      // Remove after animation
+      setTimeout(() => {
+        if (document.body.contains(orb)) {
+          document.body.removeChild(orb);
+        }
+      }, 2000);
+    }
+    
+    // Add celebration burst animation
+    if (!document.getElementById('celebration-styles')) {
+      const style = document.createElement('style');
+      style.id = 'celebration-styles';
+      style.textContent = `
+        @keyframes celebrationBurst {
+          0% {
+            opacity: 1;
+            transform: translate(0, 0) scale(0.5);
+          }
+          50% {
+            opacity: 1;
+            transform: translate(var(--target-x), var(--target-y)) scale(1.2);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(var(--target-x), var(--target-y)) scale(0.3);
+          }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }
+
+  // Function to set indicator state with blue orb variations
+  private setIndicatorState(state: 'normal' | 'recording' | 'processing' | 'celebration' | 'error') {
+    const indicator = document.querySelector('.indicator') as HTMLElement;
+    const controlIndicator = document.querySelector('.control-indicator') as HTMLElement;
+    
+    if (!indicator) return;
+    
+    // Remove existing state classes
+    indicator.className = 'indicator';
+    if (controlIndicator) {
+      controlIndicator.className = 'control-indicator';
+    }
+    
+    // Apply new state
+    switch (state) {
+      case 'recording':
+        indicator.classList.add('recording');
+        if (controlIndicator) controlIndicator.classList.add('recording');
+        break;
+      case 'processing':
+        indicator.classList.add('processing');
+        if (controlIndicator) controlIndicator.classList.add('processing');
+        break;
+      case 'celebration':
+        indicator.classList.add('celebration');
+        if (controlIndicator) controlIndicator.classList.add('celebration');
+        // Auto-return to normal after celebration
+        setTimeout(() => this.setIndicatorState('normal'), 3000);
+        break;
+      case 'error':
+        indicator.classList.add('error');
+        if (controlIndicator) controlIndicator.classList.add('error');
+        // Auto-return to normal after error display
+        setTimeout(() => this.setIndicatorState('normal'), 5000);
+        break;
+      case 'normal':
+      default:
+        // Already cleaned up above
+        break;
+    }
   }
 }
 

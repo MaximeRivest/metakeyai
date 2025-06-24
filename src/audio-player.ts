@@ -4,16 +4,37 @@ import * as path from 'path';
 import { EventEmitter } from 'events';
 
 export class AudioPlayer extends EventEmitter {
+  private static instance: AudioPlayer | null = null;
+  private static cachedPlaybackMethod: 'ffplay' | 'vlc' | 'powershell' | 'windows-media' | 'sox' | null = null;
+  private static methodInitialized = false;
+  
   private currentProcess: ChildProcess | null = null;
   private playbackMethod: 'ffplay' | 'vlc' | 'powershell' | 'windows-media' | 'sox' | null = null;
   private isPlaying = false;
 
   constructor() {
     super();
-    this.initializePlaybackMethod();
+    // Don't initialize in constructor - do it lazily in play()
+    this.playbackMethod = AudioPlayer.cachedPlaybackMethod;
+  }
+
+  /**
+   * Get singleton instance for better performance
+   */
+  public static getInstance(): AudioPlayer {
+    if (!AudioPlayer.instance) {
+      AudioPlayer.instance = new AudioPlayer();
+    }
+    return AudioPlayer.instance;
   }
 
   private async initializePlaybackMethod(): Promise<void> {
+    // Return cached result if already initialized
+    if (AudioPlayer.methodInitialized && AudioPlayer.cachedPlaybackMethod) {
+      this.playbackMethod = AudioPlayer.cachedPlaybackMethod;
+      return;
+    }
+
     console.log('🔍 Detecting available audio playback methods...');
     
     // Test methods in order of preference for each platform
@@ -36,6 +57,9 @@ export class AudioPlayer extends EventEmitter {
         const available = await method.test();
         if (available) {
           this.playbackMethod = method.name as any;
+          // Cache the result for future instances
+          AudioPlayer.cachedPlaybackMethod = this.playbackMethod;
+          AudioPlayer.methodInitialized = true;
           console.log(`🔊 Audio playback initialized with ${method.name}`);
           return;
         }
@@ -45,6 +69,7 @@ export class AudioPlayer extends EventEmitter {
     }
 
     console.error('❌ No audio playback method available');
+    AudioPlayer.methodInitialized = true; // Mark as attempted even if failed
     throw new Error('No audio playback method available');
   }
 
@@ -283,6 +308,7 @@ export class AudioPlayer extends EventEmitter {
       this.stop();
     }
 
+    // Only initialize if we don't have a cached method
     if (!this.playbackMethod) {
       await this.initializePlaybackMethod();
     }

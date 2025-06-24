@@ -268,7 +268,7 @@ export class AudioManager extends EventEmitter {
   public async playAudioFile(filePath: string): Promise<{ success: boolean; error?: string }> {
     try {
       if (!this.audioPlayer) {
-        this.audioPlayer = new AudioPlayer();
+        this.audioPlayer = AudioPlayer.getInstance();
       }
       
       await this.audioPlayer.play(filePath);

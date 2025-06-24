@@ -64,25 +64,8 @@ export class FirstRunManager {
     // NOTE: test-voice is handled in setupEssentialIpcHandlers()
 
     // Python setup handlers (specific to first-run setup)
-    ipcMain.handle('check-python-setup', async () => {
-      try {
-        const status = await this.pythonSetupManager.checkSetupStatus();
-        return status;
-      } catch (error) {
-        console.error('Failed to check Python setup:', error);
-        return {
-          isConfigured: false,
-          uvAvailable: false,
-          uvPath: null,
-          pythonPath: null,
-          projectPath: null,
-          customPythonPath: null,
-          setupMethod: 'none',
-          dependencies: { fastapi: false, uvicorn: false, dspy: false },
-          errors: [(error as Error).message]
-        };
-      }
-    });
+    // NOTE: check-python-setup handler is registered in main setupIpcListeners()
+    // to avoid duplicate registration errors
 
     ipcMain.handle('setup-python-auto', async () => {
       try {

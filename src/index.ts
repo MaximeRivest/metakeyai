@@ -460,7 +460,34 @@ const handleVoiceRecord = async () => {
   }
 
   try {
-    // Start a recording session using the pastille window
+    // Check if there's already an active voice recording session
+    const activeSessionIds = audioManager.getActiveSessionIds();
+    const voiceRecordSession = activeSessionIds.find(id => id === 'voice-record');
+    
+    if (voiceRecordSession) {
+      console.log('🛑 Voice recording already active, stopping it...');
+      
+      // Stop the existing recording session
+      const stopResult = await audioManager.stopRecordingSession('voice-record');
+      
+      if (stopResult.success) {
+        console.log('✅ Existing voice recording stopped');
+        pastilleWindow?.webContents.send('show-message', 'Recording stopped.');
+        pastilleWindow?.show();
+        
+        // Process the recording if we got a file
+        if (stopResult.filePath) {
+          processRecording(stopResult.filePath);
+        }
+      } else {
+        console.error('❌ Failed to stop existing recording:', stopResult.error);
+        pastilleWindow?.webContents.send('show-message', `Stop Recording Error – ${stopResult.error}`);
+        pastilleWindow?.show();
+      }
+      return;
+    }
+    
+    // Start a new recording session using the pastille window
     const session = await audioManager.startRecordingSession({
       sessionId: 'voice-record',
       windowType: 'pastille',
@@ -542,7 +569,7 @@ const handleTextToSpeech = async () => {
 
       // Initialize audio player if needed
       if (!audioPlayer) {
-        audioPlayer = new AudioPlayer();
+        audioPlayer = AudioPlayer.getInstance();
         
         audioPlayer.on('finished', () => {
           console.log('✅ Audio playback finished');
@@ -1713,6 +1740,29 @@ function setupEssentialIpcHandlers(): void {
         TTS_VOICE: config.TTS_VOICE,
         MICROPHONE_DEVICE: audioManager?.getMicrophoneDevice() || 'auto'
       };
+    });
+
+    // Python setup status (needed by first-run setup)
+    ipcMain.handle('check-python-setup', async () => {
+      console.log('🔧 IPC: check-python-setup called');
+      try {
+        const setupManager = PythonSetupManager.getInstance();
+        const status = await setupManager.checkSetupStatus();
+        return status;
+      } catch (error) {
+        console.error('Failed to check Python setup:', error);
+        return {
+          isConfigured: false,
+          uvAvailable: false,
+          uvPath: null,
+          pythonPath: null,
+          projectPath: null,
+          customPythonPath: null,
+          setupMethod: 'none',
+          dependencies: { fastapi: false, uvicorn: false, dspy: false },
+          errors: [(error as Error).message]
+        };
+      }
     });
 
     console.log('✅ Essential IPC handlers registered');

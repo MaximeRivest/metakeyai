@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaKeyAI Design System Demo</title>
+    <link rel="stylesheet" href="/shared-styles.css">
+    <style>
+        body {
+            /* Use the primary background from the design system */
+            background: var(--bg-primary);
+            font-family: var(--font-family);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .demo-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: var(--space-2xl) var(--space-xl);
+            position: relative;
+            z-index: 1;
+        }
+
+        .demo-card {
+            padding: var(--space-lg);
+            text-align: center;
+        }
+
+        .demo-card h3 {
+            margin-bottom: var(--space-sm);
+        }
+
+        .demo-card p {
+            margin-bottom: var(--space-md);
+        }
+    </style>
+</head>
+<body>
+    <div class="metakey-pattern" style="z-index: 0;"></div>
+    <div class="demo-container">
+        <header class="metakey-header">
+            <h1 class="metakey-title">🎨 MetaKeyAI Design System</h1>
+            <p class="metakey-subtitle">Consistent, beautiful UI components</p>
+        </header>
+        <div class="metakey-section">
+            <h2 class="section-title">✨ Unified Design</h2>
+            <p class="section-description">All three files now share the same beautiful styling system</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-lg); margin-top: var(--space-lg);">
+                <div class="metakey-card demo-card">
+                    <h3>🔮 Setup</h3>
+                    <p class="text-secondary">Beautiful onboarding experience</p>
+                    <a href="first-run-setup.html" class="metakey-btn small">View Setup</a>
+                </div>
+                <div class="metakey-card demo-card">
+                    <h3>⚙️ Settings</h3>
+                    <p class="text-secondary">Consistent configuration UI</p>
+                    <a href="settings.html" class="metakey-btn small">View Settings</a>
+                </div>
+                <div class="metakey-card demo-card">
+                    <h3>📝 Pastille</h3>
+                    <p class="text-secondary">Elegant clipboard interface</p>
+                    <a href="pastille.html" class="metakey-btn small">View Pastille</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

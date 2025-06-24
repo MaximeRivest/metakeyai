@@ -2120,4 +2120,43 @@ function setupIpcListeners(): void {
   });
 
   // UserDataManager access handlers are now in setupEssentialIpcHandlers()
+
+  // IPC handler for the first-run microphone test
+  ipcMain.handle('start-first-run-recording', async () => {
+    console.log('🎤 IPC: start-first-run-recording invoked');
+    if (!audioManager) {
+      return { success: false, error: 'Audio manager not available' };
+    }
+    try {
+      const result = await audioManager.startTestRecording();
+      return result;
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('stop-first-run-recording', async () => {
+    console.log('🎤 IPC: stop-first-run-recording invoked');
+    if (!audioManager) {
+      return { success: false, error: 'Audio manager not available' };
+    }
+    try {
+      const result = await audioManager.stopTestRecording();
+      return result;
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('play-first-run-recording', async (event, filePath) => {
+    if (!audioPlayer) {
+      audioPlayer = AudioPlayer.getInstance();
+    }
+    try {
+      await audioPlayer.play(filePath);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
 }

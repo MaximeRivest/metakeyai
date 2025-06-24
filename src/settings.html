@@ -5,69 +5,86 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src blob: data: 'self'; object-src blob:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MetaKeyAI Settings</title>
+    <link rel="stylesheet" href="/shared-styles.css">
     <style>
         body {
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
-            color: white;
+            font-family: var(--font-family);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
             overflow-x: hidden;
         }
 
         .container {
             max-width: 600px;
             margin: 0 auto;
-            padding: 40px 24px;
+            padding: var(--space-xl) var(--space-xl);
         }
 
         .header {
             text-align: center;
-            margin-bottom: 40px;
+            margin-bottom: var(--space-xl);
+            padding: var(--space-xl);
+            background: var(--glass-light);
+            backdrop-filter: blur(20px);
+            border-radius: var(--radius-xl);
+            border: 1px solid var(--border-medium);
+            box-shadow: var(--shadow-medium);
+            animation: fadeInUp 0.6s ease-out;
         }
 
         .header h1 {
-            font-size: 28px;
+            font-size: clamp(1.5rem, 3vw, 2rem);
             font-weight: 700;
-            margin: 0 0 8px 0;
-            background: linear-gradient(135deg, #4CAF50, #45a049);
+            margin: 0 0 var(--space-sm) 0;
+            background: var(--gradient-primary);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
 
         .header p {
-            font-size: 16px;
-            color: rgba(255, 255, 255, 0.7);
+            font-size: clamp(0.9rem, 2vw, 1rem);
+            color: var(--text-secondary);
             margin: 0;
         }
 
         .section {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 24px;
-            margin-bottom: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--glass-dark);
+            border-radius: var(--radius-lg);
+            padding: var(--space-xl);
+            margin-bottom: var(--space-xl);
+            border: 1px solid var(--border-light);
+            animation: fadeInUp 0.6s ease-out;
+            animation-fill-mode: both;
         }
 
+        .section:nth-child(2) { animation-delay: 0.1s; }
+        .section:nth-child(3) { animation-delay: 0.2s; }
+        .section:nth-child(4) { animation-delay: 0.3s; }
+        .section:nth-child(5) { animation-delay: 0.4s; }
+        .section:nth-child(6) { animation-delay: 0.5s; }
+
         .section-title {
-            font-size: 20px;
+            font-size: 1.25rem;
             font-weight: 600;
-            margin: 0 0 16px 0;
+            margin: 0 0 var(--space-md) 0;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: var(--space-md);
+            color: var(--text-primary);
         }
 
         .section-description {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.6);
-            margin-bottom: 20px;
-            line-height: 1.5;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: var(--space-lg);
+            line-height: 1.6;
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: var(--space-lg);
         }
 
         .form-group:last-child {
@@ -76,85 +93,101 @@
 
         .form-label {
             display: block;
-            font-size: 14px;
+            font-size: 0.9rem;
             font-weight: 500;
-            margin-bottom: 8px;
-            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: var(--space-sm);
+            color: var(--text-secondary);
         }
 
-        .form-select {
+        .form-select,
+        .form-input {
             width: 100%;
-            padding: 12px 16px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            font-size: 14px;
+            padding: var(--space-md);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            background: var(--glass-medium);
+            color: var(--text-primary);
+            font-size: 0.9rem;
             font-family: inherit;
-            transition: all 0.2s ease;
+            transition: var(--transition-fast);
         }
 
-        .form-select:focus {
+        .form-select:focus,
+        .form-input:focus {
             outline: none;
-            border-color: #4CAF50;
-            background: rgba(255, 255, 255, 0.15);
+            border-color: var(--color-primary);
+            background: var(--glass-light);
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.2);
         }
 
         .form-select option {
             background: #2d2d2d;
-            color: white;
-        }
-
-        .form-input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            font-size: 14px;
-            font-family: inherit;
-            transition: all 0.2s ease;
-        }
-
-        .form-input:focus {
-            outline: none;
-            border-color: #4CAF50;
-            background: rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
         }
 
         .form-input::placeholder {
-            color: rgba(255, 255, 255, 0.4);
+            color: var(--text-very-muted);
         }
 
         .form-help {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.5);
-            margin-top: 6px;
+            font-size: 0.75rem;
+            color: var(--text-disabled);
+            margin-top: var(--space-xs);
             line-height: 1.4;
         }
 
         .voice-preview {
             display: flex;
-            gap: 8px;
-            margin-top: 12px;
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
         }
 
         .btn {
-            padding: 8px 16px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 6px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            font-size: 12px;
+            background: var(--gradient-primary);
+            color: var(--text-primary);
+            border: none;
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-md);
+            font-size: 0.8rem;
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: var(--transition-normal);
+            box-shadow: var(--shadow-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-xs);
+            font-family: inherit;
         }
 
         .btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-primary-hover);
+        }
+
+        .btn.secondary {
+            background: var(--glass-medium);
+            box-shadow: var(--shadow-small);
+        }
+
+        .btn.secondary:hover {
+            background: var(--glass-light);
+            box-shadow: var(--shadow-medium);
+        }
+
+        .btn.primary {
+            background: var(--color-success);
+            border-color: var(--color-success);
+        }
+
+        .btn.primary:hover {
+            background: var(--color-success-hover);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
         }
 
         /* Tooltip styles */
@@ -168,22 +201,22 @@
             bottom: 100%;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.9);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 12px;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-md);
+            font-size: 0.75rem;
             line-height: 1.4;
             white-space: nowrap;
             max-width: 250px;
             white-space: normal;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: var(--shadow-large);
+            border: 1px solid var(--border-light);
             opacity: 0;
             visibility: hidden;
-            transition: all 0.2s ease;
-            z-index: 1000;
-            margin-bottom: 8px;
+            transition: var(--transition-fast);
+            z-index: var(--z-modal);
+            margin-bottom: var(--space-sm);
         }
 
         .tooltip::after {
@@ -193,7 +226,7 @@
             left: 50%;
             transform: translateX(-50%);
             border: 5px solid transparent;
-            border-top-color: rgba(0, 0, 0, 0.9);
+            border-top-color: var(--bg-dark);
         }
 
         .tooltip-container:hover .tooltip {
@@ -201,197 +234,111 @@
             visibility: visible;
         }
 
-        /* Spinner styles */
-        .spinner {
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top: 2px solid white;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-left: 8px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .btn {
+        /* Status components */
+        .api-status,
+        .mic-status {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 4px;
+            gap: var(--space-sm);
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-md);
+            font-size: 0.8rem;
+            font-weight: 500;
+            border: 1px solid var(--border-light);
+            margin-top: var(--space-md);
         }
 
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
+        .api-status.connected,
+        .mic-status.connected {
+            background: rgba(76, 175, 80, 0.2);
+            color: var(--color-success);
+            border-color: rgba(76, 175, 80, 0.3);
         }
 
-        .btn.primary {
-            background: #4CAF50;
-            border-color: #4CAF50;
+        .api-status.disconnected,
+        .mic-status.disconnected {
+            background: rgba(244, 67, 54, 0.2);
+            color: var(--color-error);
+            border-color: rgba(244, 67, 54, 0.3);
         }
 
-        .btn.primary:hover {
-            background: #45a049;
+        .mic-status.testing {
+            background: rgba(255, 152, 0, 0.2);
+            color: var(--color-warning);
+            border-color: rgba(255, 152, 0, 0.3);
+            animation: pulse 1.5s infinite;
+        }
+
+        .api-status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: var(--radius-round);
+            background: currentColor;
         }
 
         .actions {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding-top: 24px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            margin-top: 32px;
+            padding-top: var(--space-xl);
+            border-top: 1px solid var(--border-light);
+            margin-top: var(--space-2xl);
+            animation: fadeInUp 0.6s ease-out 0.6s both;
         }
 
         .status {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+            color: var(--text-muted);
         }
 
         .status.success {
-            color: #4CAF50;
+            color: var(--color-success);
         }
 
         .status.error {
-            color: #f44336;
+            color: var(--color-error);
         }
 
         .actions-right {
             display: flex;
-            gap: 12px;
-        }
-
-        .api-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .api-status.connected {
-            background: rgba(76, 175, 80, 0.2);
-            color: #4CAF50;
-            border: 1px solid rgba(76, 175, 80, 0.3);
-        }
-
-        .api-status.disconnected {
-            background: rgba(244, 67, 54, 0.2);
-            color: #f44336;
-            border: 1px solid rgba(244, 67, 54, 0.3);
-        }
-
-        .api-status-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: currentColor;
-        }
-
-        .mic-status {
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .mic-status.connected {
-            background: rgba(76, 175, 80, 0.2);
-            color: #4CAF50;
-            border: 1px solid rgba(76, 175, 80, 0.3);
-        }
-
-        .mic-status.disconnected {
-            background: rgba(244, 67, 54, 0.2);
-            color: #f44336;
-            border: 1px solid rgba(244, 67, 54, 0.3);
-        }
-
-        .mic-status.testing {
-            background: rgba(255, 152, 0, 0.2);
-            color: #ff9800;
-            border: 1px solid rgba(255, 152, 0, 0.3);
-            animation: pulse 1.5s infinite;
-        }
-
-        .shortcuts {
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 12px;
-            padding: 20px;
-            margin-top: 24px;
-        }
-
-        .shortcuts-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin: 0 0 16px 0;
-            color: rgba(255, 255, 255, 0.9);
-        }
-
-        .shortcut-list {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        .shortcut-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            font-size: 13px;
-        }
-
-        .shortcut-key {
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-        }
-
-        .shortcut-desc {
-            color: rgba(255, 255, 255, 0.7);
+            gap: var(--space-md);
         }
 
         /* Shortcuts Customization */
         .shortcuts-category {
-            margin-bottom: 24px;
+            margin-bottom: var(--space-xl);
         }
 
         .shortcuts-category-title {
-            font-size: 16px;
+            font-size: 1rem;
             font-weight: 600;
-            color: rgba(255, 255, 255, 0.9);
-            margin-bottom: 12px;
+            color: var(--text-secondary);
+            margin-bottom: var(--space-md);
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: var(--space-sm);
         }
 
         .shortcuts-grid {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 8px;
+            gap: var(--space-sm);
         }
 
         .shortcut-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 12px 16px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.2s ease;
+            padding: var(--space-md);
+            background: var(--glass-medium);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-light);
+            transition: var(--transition-fast);
         }
 
         .shortcut-row:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.2);
+            background: var(--glass-light);
+            border-color: var(--border-medium);
         }
 
         .shortcut-info {
@@ -399,46 +346,46 @@
         }
 
         .shortcut-name {
-            font-size: 14px;
+            font-size: 0.9rem;
             font-weight: 500;
-            color: rgba(255, 255, 255, 0.9);
+            color: var(--text-secondary);
             margin-bottom: 2px;
         }
 
         .shortcut-description {
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.75rem;
+            color: var(--text-muted);
         }
 
         .shortcut-key-container {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: var(--space-sm);
         }
 
         .shortcut-key-display {
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.9);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-family: var(--font-mono);
+            background: var(--glass-medium);
+            padding: var(--space-xs) var(--space-md);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-light);
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: var(--transition-fast);
             min-width: 120px;
             text-align: center;
         }
 
         .shortcut-key-display:hover {
-            background: rgba(255, 255, 255, 0.15);
-            border-color: #4CAF50;
+            background: var(--glass-light);
+            border-color: var(--color-primary);
         }
 
         .shortcut-key-display.editing {
-            background: rgba(76, 175, 80, 0.2);
-            border-color: #4CAF50;
-            color: #4CAF50;
+            background: rgba(79, 172, 254, 0.2);
+            border-color: var(--color-primary);
+            color: var(--color-primary);
         }
 
         .shortcut-key-display:empty,
@@ -451,59 +398,72 @@
 
         .shortcut-actions {
             display: flex;
-            gap: 4px;
+            gap: var(--space-xs);
         }
 
         .shortcut-btn {
-            padding: 4px 8px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
-            background: rgba(255, 255, 255, 0.1);
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 11px;
+            padding: var(--space-xs) var(--space-sm);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            background: var(--glass-medium);
+            color: var(--text-muted);
+            font-size: 0.7rem;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: var(--transition-fast);
         }
 
         .shortcut-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.9);
+            background: var(--glass-light);
+            color: var(--text-secondary);
         }
 
         .shortcut-btn.reset {
-            color: #ff9800;
+            color: var(--color-warning);
         }
 
         .shortcut-btn.reset:hover {
             background: rgba(255, 152, 0, 0.2);
-            border-color: #ff9800;
+            border-color: var(--color-warning);
         }
 
         .shortcut-recording {
             background: rgba(76, 175, 80, 0.1);
-            border: 2px solid #4CAF50;
+            border: 2px solid var(--color-success);
             animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 0.7; }
-            50% { opacity: 1; }
-            100% { opacity: 0.7; }
         }
 
         .shortcut-conflict {
             background: rgba(244, 67, 54, 0.1);
-            border-color: #f44336;
+            border-color: var(--color-error);
         }
 
         .shortcut-conflict-message {
-            font-size: 11px;
-            color: #f44336;
-            margin-top: 4px;
+            font-size: 0.7rem;
+            color: var(--color-error);
+            margin-top: var(--space-xs);
+        }
+
+        /* Background Pattern */
+        .background-pattern {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.03;
+            background-image: 
+                radial-gradient(circle at 25% 25%, #fff 2px, transparent 2px),
+                radial-gradient(circle at 75% 75%, #fff 2px, transparent 2px);
+            background-size: 60px 60px;
+            animation: float 20s ease-in-out infinite;
+            z-index: var(--z-background);
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
+    <div class="background-pattern"></div>
+    
     <div class="container">
         <div class="header">
             <h1>⚙️ MetaKeyAI Settings</h1>
@@ -522,7 +482,7 @@
                 <input type="password" id="api-key" class="form-input" placeholder="sk-..." />
                 <div class="form-help">
                     Your key is stored locally and never shared. Create one at
-                    <a href="https://platform.openai.com/api-keys" target="_blank" style="color:#4CAF50;">platform.openai.com</a>.
+                    <a href="https://platform.openai.com/api-keys" target="_blank" style="color:var(--color-primary);">platform.openai.com</a>.
                 </div>
             </div>
 
@@ -536,7 +496,7 @@
                 </div>
             </div>
 
-            <div class="api-status" id="api-status" style="margin-top:12px;">
+            <div class="api-status" id="api-status">
                 <div class="api-status-dot"></div><span>Checking...</span>
             </div>
         </div>
@@ -566,7 +526,7 @@
                     Choose the voice that will read your clipboard content aloud.
                 </div>
                 <div class="voice-preview">
-                    <button class="btn" id="test-voice">🔊 Test Voice</button>
+                    <button class="btn secondary" id="test-voice">🔊 Test Voice</button>
                 </div>
             </div>
         </div>
@@ -589,23 +549,23 @@
             </div>
 
             <div class="form-group">
-                <div class="mic-status" id="mic-status" style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;">
+                <div class="mic-status" id="mic-status">
                     <div class="api-status-dot"></div><span>Checking microphone...</span>
                 </div>
             </div>
 
             <div class="form-group">
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn" id="refresh-microphones">🔄 Refresh Devices</button>
-                    <button class="btn" id="test-microphone">🎙️ Test Recording</button>
+                <div style="display: flex; gap: var(--space-sm);">
+                    <button class="btn secondary" id="refresh-microphones">🔄 Refresh Devices</button>
+                    <button class="btn secondary" id="test-microphone">🎙️ Test Recording</button>
                 </div>
             </div>
 
             <div class="form-group" id="mic-test-result" style="display: none;">
-                <div style="padding: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
-                    <div style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">📊 Recording Test</div>
-                    <div id="mic-test-status" style="font-size: 12px; color: rgba(255, 255, 255, 0.7);"></div>
-                    <div id="mic-test-info" style="font-size: 11px; color: rgba(255, 255, 255, 0.5); margin-top: 4px;"></div>
+                <div style="padding: var(--space-md); background: var(--glass-dark); border-radius: var(--radius-md); border: 1px solid var(--border-light);">
+                    <div style="font-size: 0.9rem; font-weight: 500; margin-bottom: var(--space-sm);">📊 Recording Test</div>
+                    <div id="mic-test-status" style="font-size: 0.75rem; color: var(--text-muted);"></div>
+                    <div id="mic-test-info" style="font-size: 0.7rem; color: var(--text-disabled); margin-top: var(--space-xs);"></div>
                 </div>
             </div>
         </div>
@@ -618,18 +578,18 @@
             </div>
             
             <div id="python-status" class="form-group">
-                <div style="padding: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
-                    <div style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">📊 Python Status</div>
-                    <div id="python-status-details" style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">Checking Python setup...</div>
+                <div style="padding: var(--space-md); background: var(--glass-dark); border-radius: var(--radius-md); border: 1px solid var(--border-light);">
+                    <div style="font-size: 0.9rem; font-weight: 500; margin-bottom: var(--space-sm);">📊 Python Status</div>
+                    <div id="python-status-details" style="font-size: 0.75rem; color: var(--text-muted);">Checking Python setup...</div>
                 </div>
             </div>
             
             <div class="form-group">
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
                     <div class="tooltip-container">
                         <button class="btn primary" id="setup-python-auto">
                             <span class="btn-text">🚀 Auto Setup (Recommended)</span>
-                            <div class="spinner" style="display: none;"></div>
+                            <div class="metakey-spinner" style="display: none;"></div>
                         </button>
                         <div class="tooltip">
                             <strong>Automatic Setup</strong><br>
@@ -637,9 +597,9 @@
                         </div>
                     </div>
                     <div class="tooltip-container">
-                        <button class="btn" id="setup-python-custom">
+                        <button class="btn secondary" id="setup-python-custom">
                             <span class="btn-text">📁 Use Custom Python</span>
-                            <div class="spinner" style="display: none;"></div>
+                            <div class="metakey-spinner" style="display: none;"></div>
                         </button>
                         <div class="tooltip">
                             <strong>Custom Python Setup</strong><br>
@@ -647,9 +607,9 @@
                         </div>
                     </div>
                     <div class="tooltip-container">
-                        <button class="btn" id="reset-python-setup">
+                        <button class="btn secondary" id="reset-python-setup">
                             <span class="btn-text">🔄 Reset Setup</span>
-                            <div class="spinner" style="display: none;"></div>
+                            <div class="metakey-spinner" style="display: none;"></div>
                         </button>
                         <div class="tooltip">
                             <strong>Reset Configuration</strong><br>
@@ -660,16 +620,16 @@
             </div>
             
             <div id="python-setup-progress" class="form-group" style="display: none;">
-                <div style="padding: 12px; background: rgba(76, 175, 80, 0.1); border-radius: 8px; border: 1px solid rgba(76, 175, 80, 0.2);">
-                    <div style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">🔧 Setting up Python...</div>
-                    <div id="python-setup-log" style="font-size: 11px; color: rgba(255, 255, 255, 0.7); font-family: monospace; max-height: 100px; overflow-y: auto;"></div>
+                <div style="padding: var(--space-md); background: rgba(76, 175, 80, 0.1); border-radius: var(--radius-md); border: 1px solid rgba(76, 175, 80, 0.2);">
+                    <div style="font-size: 0.9rem; font-weight: 500; margin-bottom: var(--space-sm);">🔧 Setting up Python...</div>
+                    <div id="python-setup-log" style="font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono); max-height: 100px; overflow-y: auto;"></div>
                 </div>
             </div>
             
             <div class="form-group">
-                <details style="background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 12px;">
+                <details style="background: var(--glass-dark); border-radius: var(--radius-md); padding: var(--space-md);">
                     <summary style="cursor: pointer; font-weight: 500;">📋 Setup Options</summary>
-                    <div style="margin-top: 8px; font-size: 12px; color: rgba(255, 255, 255, 0.7);">
+                    <div style="margin-top: var(--space-sm); font-size: 0.75rem; color: var(--text-muted);">
                         <p><strong>Auto Setup:</strong> Installs UV (fast Python package manager) and creates an isolated environment with all required dependencies (FastAPI, uvicorn, DSPy).</p>
                         <p><strong>Custom Python:</strong> Use your existing Python installation. You'll need to manually install: <code>pip install fastapi uvicorn dspy-ai</code></p>
                         <p><strong>Reset Setup:</strong> Remove all Python configuration and start fresh.</p>
@@ -686,23 +646,23 @@
                 <code>METAKEYAI_LLM</code> selects the default model string for DSPy/LightLLM.
             </p>
             <div id="env-table"></div>
-            <button class="btn" id="add-env-row">＋ Add Variable</button>
+            <button class="btn secondary" id="add-env-row">＋ Add Variable</button>
 
-            <div class="form-group" style="margin-top:20px;">
+            <div class="form-group" style="margin-top: var(--space-lg);">
                 <label class="form-label">Available LLMs</label>
-                <div style="display:flex; gap:8px; align-items:center;">
+                <div style="display:flex; gap: var(--space-sm); align-items:center;">
                     <select id="llm-select" class="form-select" style="flex:1;"></select>
-                    <button class="btn" id="delete-llm" title="Delete selected LLM">✖</button>
+                    <button class="btn secondary" id="delete-llm" title="Delete selected LLM">✖</button>
                 </div>
                 <div class="form-help">The selected model will be exported as <code>METAKEYAI_LLM</code>.</div>
             </div>
 
-            <div class="form-group" style="margin-top:12px; display:flex; gap:8px;">
+            <div class="form-group" style="margin-top: var(--space-md); display:flex; gap: var(--space-sm);">
                 <input class="form-input" id="llm-input" style="flex:1;" placeholder="Add new LLM e.g. openai/gpt-4o" />
-                <button class="btn" id="add-llm">＋ Add</button>
+                <button class="btn secondary" id="add-llm">＋ Add</button>
             </div>
 
-            <div class="actions-right" style="margin-top:16px;">
+            <div class="actions-right" style="margin-top: var(--space-md);">
                 <button class="btn primary" id="test-env">Test &amp; Save</button>
             </div>
 
@@ -721,7 +681,7 @@
             </div>
             
             <div class="form-group">
-                <button class="btn" id="reset-shortcuts-btn">🔄 Reset All Shortcuts</button>
+                <button class="btn secondary" id="reset-shortcuts-btn">🔄 Reset All Shortcuts</button>
             </div>
         </div>
 
@@ -729,12 +689,11 @@
         <div class="actions">
             <div class="status" id="save-status"></div>
             <div class="actions-right">
-                <button class="btn" id="reset-btn">Reset to Defaults</button>
+                <button class="btn secondary" id="reset-btn">Reset to Defaults</button>
                 <button class="btn primary" id="save-btn">Save Settings</button>
             </div>
         </div>
     </div>
 
-    <script src="settings.js"></script>
 </body>
 </html> 

@@ -1,4 +1,4 @@
-const { ipcRenderer } = require('electron');
+const { ipcRenderer: visualizerIpcRenderer } = require('electron');
 
 const canvas = document.getElementById('visualizerCanvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d');
@@ -36,7 +36,7 @@ function draw(data: Int16Array) {
     ctx.stroke();
 }
 
-ipcRenderer.on('audio-data', (event: any, data: Buffer) => {
+visualizerIpcRenderer.on('audio-data', (event: any, data: Buffer) => {
     // The incoming data is a Buffer, we need to interpret it as 16-bit signed integers
     const int16Array = new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2);
     draw(int16Array);

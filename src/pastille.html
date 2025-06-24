@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clipboard Pastille</title>
+    <link rel="stylesheet" href="/shared-styles.css">
     <style>
         body {
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: var(--font-family);
             background: transparent;
             overflow: hidden;
             height: 100vh;
@@ -19,21 +20,21 @@
         }
 
         .pastille {
-            background: rgba(0, 0, 0, 0.9);
-            backdrop-filter: blur(10px);
-            border-radius: 30px;
-            padding: 14px 24px;
-            color: white;
-            font-size: 15px;
+            background: var(--bg-dark);
+            backdrop-filter: blur(20px);
+            border-radius: var(--radius-pill);
+            padding: var(--space-md) var(--space-xl);
+            color: var(--text-primary);
+            font-size: 0.95rem;
             font-weight: 500;
             white-space: nowrap;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: var(--shadow-large);
+            border: 2px solid var(--border-medium);
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: var(--space-md);
             max-width: 480px;
-            transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+            transition: var(--transition-bounce);
             min-height: 40px;
             -webkit-app-region: drag;
             cursor: move;
@@ -42,8 +43,9 @@
 
         .pastille:hover:not(.expanded) {
             background: rgba(0, 0, 0, 0.95);
-            transform: scale(1.02);
-            border-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+            border-color: var(--border-accent);
+            box-shadow: var(--shadow-primary);
         }
 
         .pastille:hover:not(.expanded) .settings-btn {
@@ -54,23 +56,23 @@
             width: 20px;
             height: 20px;
             border: none;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.1);
-            color: rgba(255, 255, 255, 0.7);
+            border-radius: var(--radius-round);
+            background: var(--glass-medium);
+            color: var(--text-muted);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s ease;
+            transition: var(--transition-normal);
             opacity: 0;
-            font-size: 12px;
+            font-size: 0.75rem;
             -webkit-app-region: no-drag;
             flex-shrink: 0;
         }
 
         .settings-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
+            background: var(--glass-light);
+            color: var(--text-primary);
             transform: rotate(90deg);
         }
 
@@ -82,25 +84,25 @@
             width: calc(100vw - 48px);
             height: calc(100vh - 48px);
             max-width: none;
-            border-radius: 16px;
+            border-radius: var(--radius-lg);
             padding: 0;
             flex-direction: column;
             white-space: normal;
-            background: rgba(15, 15, 15, 0.95);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            background: rgba(15, 15, 15, 0.98);
+            backdrop-filter: blur(30px);
+            border: 1px solid var(--border-light);
+            box-shadow: var(--shadow-glass);
         }
 
         .indicator {
             width: 8px;
             height: 8px;
-            border-radius: 50%;
-            background: #4CAF50;
+            border-radius: var(--radius-round);
+            background: var(--color-success);
             flex-shrink: 0;
             box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
             -webkit-app-region: no-drag;
-            transition: all 0.3s ease;
+            transition: var(--transition-normal);
         }
 
         .pastille.expanded .indicator {
@@ -113,7 +115,7 @@
             white-space: nowrap;
             flex: 1;
             -webkit-app-region: no-drag;
-            transition: all 0.3s ease;
+            transition: var(--transition-normal);
         }
 
         .pastille.expanded .content {
@@ -121,11 +123,11 @@
         }
 
         .counter {
-            font-size: 11px;
+            font-size: 0.7rem;
             opacity: 0.7;
             flex-shrink: 0;
             -webkit-app-region: no-drag;
-            transition: all 0.3s ease;
+            transition: var(--transition-normal);
         }
 
         .pastille.expanded .counter {
@@ -153,7 +155,7 @@
             flex: 1;
             max-width: 300px;
             -webkit-app-region: no-drag;
-            transition: all 0.3s ease;
+            transition: var(--transition-normal);
         }
 
         .wave.hidden {
@@ -183,52 +185,53 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 24px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.02);
+            padding: var(--space-md) var(--space-xl);
+            border-bottom: 1px solid var(--border-light);
+            background: var(--glass-dark);
             -webkit-app-region: drag;
             cursor: move;
         }
 
         .editor-title {
-            font-size: 14px;
+            font-size: 0.9rem;
             font-weight: 600;
-            color: rgba(255, 255, 255, 0.9);
+            color: var(--text-secondary);
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: var(--space-sm);
         }
 
         .editor-actions {
             display: flex;
-            gap: 8px;
+            gap: var(--space-sm);
             -webkit-app-region: no-drag;
         }
 
         .editor-btn {
-            padding: 6px 12px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 6px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            font-size: 12px;
+            padding: var(--space-xs) var(--space-md);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            background: var(--glass-medium);
+            color: var(--text-primary);
+            font-size: 0.75rem;
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: var(--transition-fast);
         }
 
         .editor-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.3);
+            background: var(--glass-light);
+            border-color: var(--border-medium);
+            transform: translateY(-1px);
         }
 
         .editor-btn.primary {
-            background: #4CAF50;
-            border-color: #4CAF50;
+            background: var(--color-success);
+            border-color: var(--color-success);
         }
 
         .editor-btn.primary:hover {
-            background: #45a049;
+            background: var(--color-success-hover);
         }
 
         /* Control Bar - Preserves pill functionality */
@@ -236,50 +239,45 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 12px 24px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(0, 0, 0, 0.3);
+            padding: var(--space-md) var(--space-xl);
+            border-bottom: 1px solid var(--border-light);
+            background: var(--glass-dark);
             -webkit-app-region: no-drag;
-            gap: 16px;
+            gap: var(--space-lg);
         }
 
         .control-group {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: var(--space-md);
         }
 
         .control-indicator {
             width: 8px;
             height: 8px;
-            border-radius: 50%;
-            background: #4CAF50;
+            border-radius: var(--radius-round);
+            background: var(--color-success);
             box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
-            transition: all 0.3s ease;
+            transition: var(--transition-normal);
         }
 
         .control-indicator.recording {
-            background: #f44336;
+            background: var(--color-error);
             box-shadow: 0 0 8px rgba(244, 67, 54, 0.6);
             animation: pulse 1s infinite;
         }
 
         .control-indicator.processing {
-            background: #ff9800;
+            background: var(--color-warning);
             box-shadow: 0 0 8px rgba(255, 152, 0, 0.6);
             animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.8); }
         }
 
         .control-waveform {
             height: 30px;
             width: 120px;
-            border-radius: 4px;
-            background: rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius-sm);
+            background: var(--glass-dark);
         }
 
         .control-waveform.hidden {
@@ -289,31 +287,32 @@
         .clipboard-nav {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 4px 8px;
-            border-radius: 6px;
-            background: rgba(255, 255, 255, 0.05);
-            font-size: 11px;
-            color: rgba(255, 255, 255, 0.7);
+            gap: var(--space-sm);
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--radius-sm);
+            background: var(--glass-medium);
+            font-size: 0.7rem;
+            color: var(--text-muted);
         }
 
         .nav-btn {
             width: 20px;
             height: 20px;
             border: none;
-            border-radius: 3px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
+            border-radius: var(--radius-sm);
+            background: var(--glass-medium);
+            color: var(--text-primary);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s ease;
-            font-size: 10px;
+            transition: var(--transition-fast);
+            font-size: 0.6rem;
         }
 
         .nav-btn:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background: var(--glass-light);
+            transform: translateY(-1px);
         }
 
         .nav-btn:disabled {
@@ -323,23 +322,23 @@
 
         .control-shortcuts {
             display: flex;
-            gap: 12px;
-            font-size: 10px;
-            color: rgba(255, 255, 255, 0.5);
+            gap: var(--space-md);
+            font-size: 0.6rem;
+            color: var(--text-disabled);
         }
 
         .shortcut-item {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: var(--space-xs);
         }
 
         .shortcut-key {
-            padding: 2px 4px;
+            padding: 2px var(--space-xs);
             border-radius: 2px;
-            background: rgba(255, 255, 255, 0.1);
-            font-family: monospace;
-            font-size: 9px;
+            background: var(--glass-medium);
+            font-family: var(--font-mono);
+            font-size: 0.55rem;
         }
 
         /* Editor Content */
@@ -355,13 +354,13 @@
             width: 100%;
             background: transparent;
             border: none;
-            color: white;
+            color: var(--text-primary);
             resize: none;
             outline: none;
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-            font-size: 14px;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
             line-height: 1.6;
-            padding: 24px;
+            padding: var(--space-xl);
             -webkit-app-region: no-drag;
             overflow-y: auto;
             white-space: pre-wrap;
@@ -369,28 +368,28 @@
         }
 
         .editor::placeholder {
-            color: rgba(255, 255, 255, 0.4);
+            color: var(--text-very-muted);
         }
 
         /* Editor Footer */
         .editor-footer {
-            padding: 12px 24px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.02);
+            padding: var(--space-md) var(--space-xl);
+            border-top: 1px solid var(--border-light);
+            background: var(--glass-dark);
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.75rem;
+            color: var(--text-muted);
         }
 
         .editor-stats {
             display: flex;
-            gap: 16px;
+            gap: var(--space-lg);
         }
 
         .editor-shortcuts {
-            font-size: 11px;
+            font-size: 0.7rem;
             opacity: 0.5;
         }
 
@@ -402,9 +401,9 @@
             height: 100%;
             backdrop-filter: blur(8px) brightness(0.3);
             background: rgba(0, 0, 0, 0.4);
-            z-index: -1;
+            z-index: var(--z-background);
             opacity: 0;
-            transition: opacity 0.3s ease;
+            transition: var(--transition-normal);
         }
 
         .pastille.expanded + .backdrop,
@@ -420,30 +419,78 @@
         /* Animations */
         @keyframes expandPastille {
             from {
-                border-radius: 30px;
+                border-radius: var(--radius-pill);
                 transform: scale(1);
             }
             to {
-                border-radius: 16px;
+                border-radius: var(--radius-lg);
                 transform: scale(1);
             }
         }
 
         @keyframes collapsePastille {
             from {
-                border-radius: 16px;
+                border-radius: var(--radius-lg);
             }
             to {
-                border-radius: 30px;
+                border-radius: var(--radius-pill);
             }
         }
 
         .pastille.expanding {
-            animation: expandPastille 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+            animation: expandPastille 0.3s var(--transition-bounce);
         }
 
         .pastille.collapsing {
-            animation: collapsePastille 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+            animation: collapsePastille 0.3s var(--transition-bounce);
+        }
+
+        /* Status indicators using design system colors */
+        .control-indicator.connected {
+            background: var(--color-success);
+            box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+        }
+
+        .control-indicator.disconnected {
+            background: var(--color-error);
+            box-shadow: 0 0 8px rgba(244, 67, 54, 0.6);
+        }
+
+        .control-indicator.warning {
+            background: var(--color-warning);
+            box-shadow: 0 0 8px rgba(255, 152, 0, 0.6);
+        }
+
+        /* Enhanced visual feedback */
+        .editor-btn:active {
+            transform: translateY(0);
+        }
+
+        .nav-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .pastille {
+                padding: var(--space-sm) var(--space-lg);
+                font-size: 0.9rem;
+            }
+            
+            .editor-header,
+            .editor-controls,
+            .editor-footer {
+                padding: var(--space-sm) var(--space-lg);
+            }
+            
+            .editor {
+                padding: var(--space-lg);
+                font-size: 0.85rem;
+            }
+            
+            .control-shortcuts {
+                display: none;
+            }
         }
     </style>
 </head>
@@ -499,7 +546,7 @@
                         <span>Speak</span>
                     </div>
                     <div class="shortcut-item">
-                        <button class="nav-btn" id="spell-book-btn" title="Open Python Spell Book" style="width: 24px; height: 20px; margin-left: 8px;">🧙‍♂️</button>
+                        <button class="nav-btn" id="spell-book-btn" title="Open Python Spell Book" style="width: 24px; height: 20px; margin-left: var(--space-sm);">🧙‍♂️</button>
                         <span>Spells</span>
                     </div>
                 </div>
@@ -521,6 +568,5 @@
         </div>
     </div>
 
-    <script src="pastille.js"></script>
 </body>
 </html> 

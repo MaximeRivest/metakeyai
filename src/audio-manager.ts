@@ -16,6 +16,9 @@ export class AudioManager extends EventEmitter {
   private audioSettings: any = {};
   private audioPlayer: AudioPlayer | null = null;
   private activeSessions = new Map<string, RecordingSession>();
+  private isTestRecording = false;
+  private testRecordingChunks: ArrayBuffer[] = [];
+  private testRecordingTimeout: NodeJS.Timeout | null = null;
 
   private constructor() {
     super();
@@ -119,6 +122,18 @@ export class AudioManager extends EventEmitter {
 
     ipcMain.handle('play-first-run-recording', async (event, filePath: string) => {
       return this.playAudioFile(filePath);
+    });
+
+    ipcMain.on('first-run-test-audio-started', () => {
+      console.log('🎤 AudioManager received test audio started confirmation');
+      this.emit('test-recording-started');
+    });
+
+    ipcMain.on('first-run-test-audio-finished', (event, { buffer, mimeType }) => {
+      console.log('🎤 AudioManager received test audio data');
+      const filePath = join(this.getTempDir(), `test-recording-${Date.now()}.webm`);
+      fs.writeFileSync(filePath, Buffer.from(buffer));
+      this.emit('test-recording-finished', { filePath });
     });
   }
 
@@ -328,7 +343,8 @@ export class AudioManager extends EventEmitter {
       finishedEvent: `${eventPrefix}-audio-finished`,
       errorEvent: `${eventPrefix}-audio-error`,
       startCommand: `start-${eventPrefix}-recording`,
-      stopCommand: `stop-${eventPrefix}-recording`
+      stopCommand: `stop-${eventPrefix}-recording`,
+      eventPrefix: eventPrefix
     };
     
     this.activeSessions.set(sessionId, session);
@@ -400,7 +416,7 @@ export class AudioManager extends EventEmitter {
       ipcMain.once(session.finishedEvent, handleFinished);
 
       if (session.window) {
-        session.window.webContents.send(session.stopCommand);
+        session.window.webContents.send('stop-web-audio', { prefix: session.eventPrefix });
       } else {
         clearTimeout(stopTimeout);
         console.warn(`⚠️ Window not found for session: ${sessionId}`);
@@ -472,9 +488,9 @@ export class AudioManager extends EventEmitter {
       session.cleanupHandlers = cleanup;
 
       if (session.window) {
-        console.log(`🎤 Sending start command to window for session: ${session.id}`);
+        console.log(`🎤 Sending start-web-audio to window for session: ${session.id}`);
         const userDevice = this.getMicrophoneDevice();
-        session.window.webContents.send(session.startCommand, { deviceId: userDevice || 'default' });
+        session.window.webContents.send('start-web-audio', { prefix: session.eventPrefix, deviceId: userDevice || 'default' });
       } else {
         clearTimeout(startTimeout);
         cleanup();
@@ -554,6 +570,68 @@ export class AudioManager extends EventEmitter {
     // Clear all sessions
     this.activeSessions.clear();
   }
+
+  public async startTestRecording(): Promise<{ success: boolean, error?: string }> {
+    if (this.isTestRecording) {
+      return { success: false, error: 'A test recording is already in progress.' };
+    }
+    this.isTestRecording = true;
+    this.testRecordingChunks = [];
+
+    return new Promise((resolve) => {
+      this.testRecordingTimeout = setTimeout(() => {
+        if (this.isTestRecording) {
+          this.isTestRecording = false;
+          resolve({ success: false, error: 'Recording start timeout - no confirmation received' });
+        }
+      }, 15000);
+
+      this.once('test-recording-started', () => {
+        clearTimeout(this.testRecordingTimeout);
+        this.testRecordingTimeout = null;
+        resolve({ success: true });
+      });
+
+      this.triggerWebRecording('first-run-test-audio');
+    });
+  }
+
+  public async stopTestRecording(): Promise<{ success: boolean, filePath?: string, error?: string }> {
+    if (!this.isTestRecording) {
+      return { success: false, error: 'No test recording is in progress.' };
+    }
+
+    return new Promise((resolve) => {
+      this.once('test-recording-finished', (result: {filePath: string}) => {
+        this.isTestRecording = false;
+        resolve({ success: true, filePath: result.filePath });
+      });
+
+      this.stopWebRecording('first-run-test-audio');
+    });
+  }
+
+  private triggerWebRecording(eventPrefix: string): void {
+    console.log(`🎤 Broadcasting start-web-audio (${eventPrefix}) to all renderer windows`);
+    BrowserWindow.getAllWindows().forEach(w => {
+      w.webContents.send('start-web-audio', { prefix: eventPrefix });
+    });
+  }
+
+  private stopWebRecording(eventPrefix: string): void {
+    console.log(`🛑 Broadcasting stop-web-audio (${eventPrefix}) to all renderer windows`);
+    BrowserWindow.getAllWindows().forEach(w => {
+      w.webContents.send('stop-web-audio', { prefix: eventPrefix });
+    });
+  }
+
+  private getTempDir(): string {
+    const tempDir = join(tmpdir(), 'metakeyai-audio');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    return tempDir;
+  }
 }
 
 // Recording session interface
@@ -568,4 +646,5 @@ interface RecordingSession {
   errorEvent: string;
   startCommand: string;
   stopCommand: string;
+  eventPrefix: string;
 } 

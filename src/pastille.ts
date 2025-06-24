@@ -324,6 +324,23 @@ class PastilleRenderer {
         this.mediaRecorder.stop();
       }
     });
+
+    // Generic unified recording start handler
+    pastilleIpcRenderer.on('start-web-audio', async (event: any, payload: any) => {
+      const prefix = typeof payload === 'string' ? payload : payload.prefix || payload.eventPrefix || '';
+      if (prefix !== 'pastille') return; // not for us
+
+      const options: { deviceId: string } = typeof payload === 'object' && payload.deviceId ? { deviceId: payload.deviceId } : { deviceId: 'default' };
+      // Reuse existing handler logic by emitting a synthetic event with same signature
+      pastilleIpcRenderer.emit('start-pastille-recording', event, options);
+    });
+
+    pastilleIpcRenderer.on('stop-web-audio', (event: any, payload: any) => {
+      const prefix = typeof payload === 'string' ? payload : payload.prefix || payload.eventPrefix || '';
+      if (prefix !== 'pastille') return;
+      // Delegate to existing stop handler logic
+      pastilleIpcRenderer.emit('stop-pastille-recording');
+    });
   }
 
   private updateControlBar() {

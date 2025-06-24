@@ -7,6 +7,8 @@
     --color-primary-end: #00f2fe;
     --color-secondary: #667eea;
     --color-secondary-end: #764ba2;
+    --color-purple-start: #667eea;
+    --color-purple-end: #764ba2;
     --color-success: #4CAF50;
     --color-success-hover: #45a049;
     --color-warning: #ff9800;
@@ -347,6 +349,13 @@
     padding: var(--space-sm) var(--space-md);
     font-size: 0.8rem;
     border-radius: var(--radius-md);
+    margin: var(--space-xs);
+}
+
+/* Link buttons */
+a.metakey-btn {
+    text-decoration: none;
+    display: inline-flex;
 }
 
 /* Form Elements */

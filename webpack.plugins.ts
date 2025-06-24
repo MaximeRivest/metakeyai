@@ -15,6 +15,12 @@ export const plugins = [
         from: 'src/python_scripts',
         to: 'python_scripts',
       },
+      {
+        from: 'src/shared-styles.css',
+        to: 'shared-styles.css',
+      },
+      // Note: JavaScript files are handled by webpack entry points in forge.config.ts
+      // Only static assets like CSS need to be copied
     ],
   }),
 ];

@@ -5,24 +5,19 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src blob: data: 'self'; object-src blob:;">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MetaKeyAI Setup</title>
+    <link rel="stylesheet" href="/shared-styles.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: var(--font-family);
             background: transparent;
-            color: white;
+            color: var(--text-primary);
             overflow: hidden;
             user-select: none;
             margin: 0;
             padding: 0;
             height: 100vh;
             width: 100vw;
-            border-radius: 25px;
+            border-radius: var(--radius-pill);
             clip-path: inset(0 round 25px);
             -webkit-clip-path: inset(0 round 25px);
         }
@@ -37,85 +32,19 @@
             position: relative;
             padding: 0;
             box-sizing: border-box;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 25px;
+            background: var(--bg-primary);
+            border-radius: var(--radius-pill);
             box-shadow: 
-                0 25px 50px rgba(0, 0, 0, 0.25),
-                0 0 0 1px rgba(255, 255, 255, 0.1),
-                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+                var(--shadow-glass),
+                0 0 0 1px var(--border-light),
+                inset 0 1px 0 var(--border-medium);
             backdrop-filter: blur(20px);
             overflow: hidden;
             clip-path: inset(0 round 25px);
             -webkit-clip-path: inset(0 round 25px);
         }
 
-        /* Custom draggable header */
-        .drag-header {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 40px;
-            -webkit-app-region: drag;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 25px 25px 0 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 1rem;
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 100;
-        }
-
-        .window-title {
-            font-size: 0.9rem;
-            font-weight: 500;
-            opacity: 0.8;
-            -webkit-app-region: no-drag;
-            pointer-events: none;
-        }
-
-        .window-controls {
-            display: flex;
-            gap: 0.5rem;
-            -webkit-app-region: no-drag;
-            z-index: 1000;
-            position: relative;
-            pointer-events: auto;
-        }
-
-        .window-control {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            -webkit-app-region: no-drag;
-            z-index: 1001;
-            position: relative;
-            pointer-events: auto;
-            user-select: none;
-        }
-
-        .window-control.close {
-            background: #ff5f57;
-        }
-
-        .window-control.minimize {
-            background: #ffbd2e;
-        }
-
-        .window-control.maximize {
-            background: #28ca42;
-            opacity: 0.5;
-        }
-
-        .window-control:hover {
-            transform: scale(1.1);
-            opacity: 0.8;
-        }
-
+        /* Background Pattern */
         .background-pattern {
             position: absolute;
             top: 0;
@@ -128,8 +57,8 @@
                 radial-gradient(circle at 75% 75%, #fff 2px, transparent 2px);
             background-size: 60px 60px;
             animation: float 20s ease-in-out infinite;
-            z-index: -1;
-            border-radius: 25px;
+            z-index: var(--z-background);
+            border-radius: var(--radius-pill);
             overflow: hidden;
         }
 
@@ -141,14 +70,14 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 2rem;
+            padding: var(--space-xl);
             box-sizing: border-box;
         }
 
         .logo {
             font-size: clamp(1.8rem, 4vw, 2.5rem);
             font-weight: 700;
-            margin-bottom: 0.5rem;
+            margin-bottom: var(--space-sm);
             text-shadow: 0 4px 8px rgba(0,0,0,0.3);
             animation: fadeInUp 1s ease-out;
         }
@@ -156,21 +85,21 @@
         .subtitle {
             font-size: clamp(1rem, 2vw, 1.1rem);
             opacity: 0.9;
-            margin-bottom: 1.5rem;
+            margin-bottom: var(--space-lg);
             animation: fadeInUp 1s ease-out 0.2s both;
             text-align: center;
         }
 
         .setup-card {
-            background: rgba(255, 255, 255, 0.15);
+            background: var(--glass-light);
             backdrop-filter: blur(20px);
-            border-radius: 20px;
+            border-radius: var(--radius-xl);
             padding: clamp(1.5rem, 3vw, 3rem);
             width: 90%;
             max-width: 600px;
             max-height: calc(100vh - 8rem);
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: var(--shadow-medium);
+            border: 1px solid var(--border-medium);
             animation: fadeInUp 1s ease-out 0.4s both;
             display: flex;
             flex-direction: column;
@@ -191,16 +120,6 @@
             animation: fadeIn 0.5s ease-out;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
         .step-title {
             font-size: clamp(1.2rem, 3vw, 1.5rem);
             font-weight: 600;
@@ -216,65 +135,6 @@
             flex-shrink: 0;
         }
 
-        .progress-bar {
-            width: 100%;
-            height: 6px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 3px;
-            margin-bottom: clamp(1rem, 2vh, 2rem);
-            overflow: hidden;
-            flex-shrink: 0;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
-            border-radius: 3px;
-            transition: width 0.8s ease;
-            box-shadow: 0 0 10px rgba(79, 172, 254, 0.5);
-        }
-
-        .btn {
-            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-            border: none;
-            padding: clamp(10px, 2vh, 12px) clamp(20px, 4vw, 30px);
-            border-radius: 25px;
-            font-size: clamp(0.9rem, 2vw, 1rem);
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin: 0.5rem;
-            box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);
-            flex-shrink: 0;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(79, 172, 254, 0.4);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn.secondary {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.1);
-        }
-
-        .btn.secondary:hover {
-            background: rgba(255, 255, 255, 0.3);
-            box-shadow: 0 6px 20px rgba(255, 255, 255, 0.2);
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
         .setup-options {
             display: flex;
             flex-direction: column;
@@ -282,43 +142,6 @@
             margin-bottom: clamp(1rem, 2vh, 2rem);
             flex: 1;
             min-height: 0;
-        }
-
-        .option-card {
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 15px;
-            padding: clamp(1rem, 2vh, 1.5rem);
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-align: left;
-            flex-shrink: 0;
-        }
-
-        .option-card:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.4);
-            transform: translateY(-2px);
-        }
-
-        .option-card.selected {
-            background: rgba(79, 172, 254, 0.3);
-            border-color: #4facfe;
-            box-shadow: 0 0 20px rgba(79, 172, 254, 0.3);
-        }
-
-        .option-title {
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: clamp(0.9rem, 2vw, 1rem);
-        }
-
-        .option-description {
-            opacity: 0.8;
-            font-size: clamp(0.8rem, 1.8vw, 0.9rem);
         }
 
         .status-list {
@@ -331,12 +154,12 @@
         .status-item {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: var(--space-sm);
             margin: clamp(0.5rem, 1vh, 0.8rem) 0;
             padding: clamp(0.3rem, 1vh, 0.5rem);
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            transition: all 0.3s ease;
+            background: var(--glass-medium);
+            border-radius: var(--radius-md);
+            transition: var(--transition-normal);
             font-size: clamp(0.8rem, 1.8vw, 0.9rem);
             flex-shrink: 0;
         }
@@ -350,20 +173,6 @@
             font-size: 0.9rem;
         }
 
-        .spinner {
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top: 2px solid #fff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
         .shortcuts-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -374,20 +183,20 @@
         }
 
         .shortcut-item {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
+            background: var(--glass-medium);
+            border-radius: var(--radius-md);
             padding: clamp(0.5rem, 2vh, 1rem);
             text-align: center;
             flex-shrink: 0;
         }
 
         .shortcut-key {
-            font-family: 'Courier New', monospace;
-            background: rgba(255, 255, 255, 0.2);
+            font-family: var(--font-mono);
+            background: var(--glass-light);
             padding: 0.3rem 0.6rem;
-            border-radius: 6px;
+            border-radius: var(--radius-sm);
             font-size: clamp(0.8rem, 1.8vw, 0.9rem);
-            margin-bottom: 0.5rem;
+            margin-bottom: var(--space-sm);
             display: inline-block;
         }
 
@@ -406,12 +215,12 @@
         }
 
         .model-card {
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 10px;
+            background: var(--glass-medium);
+            border: 2px solid var(--border-light);
+            border-radius: var(--radius-md);
             padding: clamp(0.8rem, 2vh, 1rem);
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: var(--transition-normal);
             display: flex;
             align-items: center;
             gap: clamp(0.5rem, 2vw, 1rem);
@@ -419,13 +228,13 @@
         }
 
         .model-card:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.4);
+            background: var(--glass-light);
+            border-color: var(--border-medium);
         }
 
         .model-card.selected {
             background: rgba(79, 172, 254, 0.3);
-            border-color: #4facfe;
+            border-color: var(--color-primary);
             box-shadow: 0 0 15px rgba(79, 172, 254, 0.3);
         }
 
@@ -450,14 +259,9 @@
             animation: pulse 2s ease-in-out infinite;
         }
 
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-
         .success-icon {
             font-size: 4rem;
-            margin-bottom: 1rem;
+            margin-bottom: var(--space-md);
             animation: bounceIn 1s ease-out;
         }
 
@@ -469,51 +273,40 @@
 
         /* Microphone test specific styles */
         .mic-ready-section, .mic-test-section, .mic-playback-section, .mic-advanced-section {
-            margin: 1.5rem 0;
+            margin: var(--space-lg) 0;
             text-align: center;
         }
 
         .test-prompt {
-            margin: 1rem 0;
+            margin: var(--space-md) 0;
             text-align: center;
         }
 
-        .btn.outline {
-            background: transparent;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            color: white;
-        }
-
-        .btn.outline:hover {
-            border-color: rgba(255, 255, 255, 0.5);
-            background: rgba(255, 255, 255, 0.05);
-        }
-
         .details-toggle {
-            margin-top: 1.5rem;
+            margin-top: var(--space-lg);
         }
 
         .details-btn {
             background: transparent;
             border: none;
-            color: rgba(255, 255, 255, 0.7);
+            color: var(--text-muted);
             font-size: 0.9rem;
             cursor: pointer;
-            padding: 0.5rem;
-            border-radius: 8px;
-            transition: all 0.3s ease;
+            padding: var(--space-sm);
+            border-radius: var(--radius-md);
+            transition: var(--transition-normal);
             text-decoration: underline;
             text-underline-offset: 3px;
         }
 
         .details-btn:hover {
-            color: rgba(255, 255, 255, 0.9);
-            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            background: var(--glass-dark);
             text-decoration: none;
         }
 
         .details-section {
-            margin-top: 1rem;
+            margin-top: var(--space-md);
             animation: slideDown 0.3s ease-out;
         }
 
@@ -531,36 +324,36 @@
         }
 
         .details-content {
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 15px;
-            padding: 1.5rem;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--glass-dark);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            border: 1px solid var(--border-light);
             backdrop-filter: blur(10px);
             text-align: left;
         }
 
         .details-content h4 {
-            margin: 0 0 1rem 0;
+            margin: 0 0 var(--space-md) 0;
             font-size: 1.1rem;
-            color: #4facfe;
+            color: var(--color-primary);
         }
 
         .details-content p {
-            margin: 0.5rem 0;
+            margin: var(--space-sm) 0;
             opacity: 0.9;
             line-height: 1.5;
         }
 
         .feature-list {
-            margin: 1rem 0;
+            margin: var(--space-md) 0;
         }
 
         .feature-item {
             display: flex;
             align-items: flex-start;
-            gap: 0.8rem;
-            margin: 0.8rem 0;
-            padding: 0.5rem 0;
+            gap: var(--space-sm);
+            margin: var(--space-sm) 0;
+            padding: var(--space-sm) 0;
         }
 
         .feature-icon {
@@ -575,7 +368,7 @@
         }
 
         .feature-item strong {
-            color: white;
+            color: var(--text-primary);
             font-size: 0.95rem;
         }
 
@@ -585,14 +378,14 @@
         }
 
         .ready-check {
-            margin-top: 1.5rem;
-            padding-top: 1rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: var(--space-lg);
+            padding-top: var(--space-md);
+            border-top: 1px solid var(--border-light);
         }
 
         .ready-check h4 {
-            color: #00f2fe;
-            margin-bottom: 0.8rem;
+            color: var(--color-primary-end);
+            margin-bottom: var(--space-sm);
         }
 
         .mic-controls {
@@ -607,35 +400,35 @@
             flex: 1;
             min-width: clamp(200px, 40vw, 250px);
             padding: clamp(8px, 1.5vh, 12px) clamp(12px, 2vw, 16px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            background: var(--glass-medium);
+            color: var(--text-primary);
             font-size: clamp(14px, 2vw, 15px);
             font-family: inherit;
-            transition: all 0.2s ease;
+            transition: var(--transition-fast);
             backdrop-filter: blur(10px);
         }
 
         .form-select:focus {
             outline: none;
-            border-color: #4facfe;
-            background: rgba(255, 255, 255, 0.15);
+            border-color: var(--color-primary);
+            background: var(--glass-light);
             box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.2);
         }
 
         .form-select option {
             background: #2d2d2d;
-            color: white;
+            color: var(--text-primary);
         }
 
         #micWave {
             width: 100%;
             height: clamp(60px, 10vh, 100px);
             display: none;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-md);
+            background: var(--glass-dark);
+            border: 1px solid var(--border-light);
             margin: clamp(12px, 2vh, 16px) 0;
             backdrop-filter: blur(5px);
             flex-shrink: 0;
@@ -644,8 +437,8 @@
         #micPlayback {
             margin-top: clamp(1rem, 2vh, 1.5rem);
             width: 100%;
-            border-radius: 12px;
-            background: rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius-md);
+            background: var(--glass-dark);
             display: none;
             backdrop-filter: blur(5px);
             flex-shrink: 0;
@@ -658,34 +451,19 @@
             line-height: 1.5;
             text-align: center;
             padding: clamp(0.5rem, 2vh, 1rem);
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 10px;
+            background: var(--glass-dark);
+            border-radius: var(--radius-md);
             backdrop-filter: blur(5px);
             flex-shrink: 0;
         }
 
         /* Audio player styling */
         audio::-webkit-media-controls-panel {
-            background-color: rgba(255, 255, 255, 0.1);
+            background-color: var(--glass-medium);
         }
 
         audio {
             filter: sepia(20%) saturate(70%) hue-rotate(180deg);
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-20px); }
-        }
-
-        @keyframes fadeOut {
-            from { opacity: 1; transform: translateY(0); }
-            to { opacity: 0; transform: translateY(-20px); }
-        }
-
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
         }
 
         /* Magical animation styles */
@@ -694,39 +472,8 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 3rem 0;
+            padding: var(--space-2xl) 0;
             position: relative;
-        }
-
-        .magic-orb {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, #4facfe, #00f2fe, #667eea);
-            box-shadow: 
-                0 0 30px rgba(79, 172, 254, 0.5),
-                0 0 60px rgba(79, 172, 254, 0.3),
-                inset 0 0 20px rgba(255, 255, 255, 0.2);
-            animation: orb-pulse 3s ease-in-out infinite;
-            position: relative;
-            margin-bottom: 2rem;
-        }
-
-        @keyframes orb-pulse {
-            0%, 100% { 
-                transform: scale(1);
-                box-shadow: 
-                    0 0 30px rgba(79, 172, 254, 0.5),
-                    0 0 60px rgba(79, 172, 254, 0.3),
-                    inset 0 0 20px rgba(255, 255, 255, 0.2);
-            }
-            50% { 
-                transform: scale(1.1);
-                box-shadow: 
-                    0 0 40px rgba(79, 172, 254, 0.7),
-                    0 0 80px rgba(79, 172, 254, 0.5),
-                    inset 0 0 25px rgba(255, 255, 255, 0.3);
-            }
         }
 
         .magic-sparkles {
@@ -744,7 +491,7 @@
             width: 8px;
             height: 8px;
             background: #fff;
-            border-radius: 50%;
+            border-radius: var(--radius-round);
             animation: sparkle-float 4s ease-in-out infinite;
             opacity: 0;
         }
@@ -796,23 +543,6 @@
                 opacity: 1;
                 transform: translateY(-15px) scale(1);
             }
-        }
-
-        .magic-text {
-            font-size: 1.1rem;
-            font-weight: 500;
-            opacity: 0.9;
-            animation: text-shimmer 2s ease-in-out infinite;
-            background: linear-gradient(45deg, #4facfe, #00f2fe, #fff, #4facfe);
-            background-size: 300% 300%;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        @keyframes text-shimmer {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
         }
 
         /* Magical transition animations */
@@ -876,7 +606,7 @@
 <body>
     <div class="setup-container">
         <!-- Custom draggable header -->
-        <div class="drag-header">
+        <div class="metakey-drag-header">
             <div class="window-title">MetaKeyAI Setup</div>
             <div class="window-controls">
                 <div class="window-control minimize" id="minimizeBtn"></div>
@@ -892,7 +622,7 @@
             <div class="subtitle">Your AI-powered productivity companion</div>
             
             <div class="setup-card">
-                <div class="progress-bar">
+                <div class="metakey-progress">
                     <div class="progress-fill" id="progressFill"></div>
                 </div>
 
@@ -903,16 +633,16 @@
                         Let's get you set up in just a few minutes. We'll automatically configure everything you need for the best experience.
                     </div>
                     <div class="setup-options">
-                        <div class="option-card selected" id="option-auto">
+                        <div class="metakey-option-card selected" id="option-auto">
                             <div class="option-title">🚀 Quick Setup (Recommended)</div>
                             <div class="option-description">Automatically detect and configure everything step by step</div>
                         </div>
-                        <div class="option-card" id="option-manual">
+                        <div class="metakey-option-card" id="option-manual">
                             <div class="option-title">⚙️ Skip Setup</div>
                             <div class="option-description">Skip setup and configure everything manually in settings</div>
                         </div>
                     </div>
-                    <button class="btn" id="startSetupBtn">Get Started</button>
+                    <button class="metakey-btn" id="startSetupBtn">Get Started</button>
                 </div>
 
                 <!-- Magical Preparation Step -->
@@ -942,7 +672,7 @@
                     </div>
 
                     <div class="mic-ready-section" id="micReadySection">
-                        <button class="btn" id="micReadyBtn">🎤 I'm ready!</button>
+                        <button class="metakey-btn" id="micReadyBtn">🎤 I'm ready!</button>
                         
                         <div class="details-toggle">
                             <button class="details-btn" id="detailsBtn">What does this do? 🤔</button>
@@ -989,43 +719,43 @@
                     <div class="mic-test-section" id="micTestSection" style="display: none;">
                         <div class="test-prompt" id="testPrompt">
                             <strong>Please read this aloud:</strong><br>
-                            <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 10px; margin: 1rem 0; font-style: italic;">
+                            <div style="background: var(--glass-medium); padding: var(--space-md); border-radius: var(--radius-md); margin: var(--space-md) 0; font-style: italic;">
                                 "MetaKeyAI is my new productivity companion that helps me work faster and smarter with AI-powered voice features in my clipboard."
                             </div>
                         </div>
                         
                         <canvas id="micWave"></canvas>
-                        <button class="btn" id="micRecordBtn">🔴 Start Recording</button>
+                        <button class="metakey-btn" id="micRecordBtn">🔴 Start Recording</button>
                         <div id="micStatus"></div>
                     </div>
 
                     <div class="mic-playback-section" id="micPlaybackSection" style="display: none;">
-                        <div style="text-align: center; margin-bottom: 1rem;">
-                            <div style="font-size: 1.1rem; margin-bottom: 0.5rem;">Great! Let's hear how it sounds:</div>
+                        <div style="text-align: center; margin-bottom: var(--space-md);">
+                            <div style="font-size: 1.1rem; margin-bottom: var(--space-sm);">Great! Let's hear how it sounds:</div>
                         </div>
-                        <button class="btn secondary" id="micPlayBtn">🔊 Play Recording</button>
-                        <div style="margin: 1.5rem 0;">
-                            <button class="btn" id="micWorksBtn">✅ Sounds perfect! Continue</button>
-                            <button class="btn secondary" id="micTryAgainBtn">🔄 Record again</button>
+                        <button class="metakey-btn secondary" id="micPlayBtn">🔊 Play Recording</button>
+                        <div style="margin: var(--space-lg) 0;">
+                            <button class="metakey-btn" id="micWorksBtn">✅ Sounds perfect! Continue</button>
+                            <button class="metakey-btn secondary" id="micTryAgainBtn">🔄 Record again</button>
                         </div>
                         
                         <div class="device-options-toggle" id="deviceOptionsToggle">
-                            <button class="btn outline" id="deviceAdvancedBtn">⚙️ Need help? Try different microphones</button>
+                            <button class="metakey-btn outline" id="deviceAdvancedBtn">⚙️ Need help? Try different microphones</button>
                         </div>
                     </div>
 
                     <div class="mic-advanced-section" id="micAdvancedSection" style="display: none;">
-                        <div style="margin-bottom: 1rem; padding: 1rem; background: rgba(255,255,255,0.05); border-radius: 10px;">
+                        <div style="margin-bottom: var(--space-md); padding: var(--space-md); background: var(--glass-dark); border-radius: var(--radius-md);">
                             <strong>Device Selection & Testing</strong><br>
                             <span style="opacity: 0.8; font-size: 0.9rem;">Choose a different microphone and test until you're happy with the quality.</span>
                         </div>
                         
                         <div class="mic-controls">
                             <select id="micDeviceSelect" class="form-select"></select>
-                            <button class="btn secondary" id="micRefreshBtn">🔄 Refresh</button>
+                            <button class="metakey-btn secondary" id="micRefreshBtn">🔄 Refresh</button>
                         </div>
                         
-                        <button class="btn secondary" id="micTestAgainBtn">🎤 Test This Device</button>
+                        <button class="metakey-btn secondary" id="micTestAgainBtn">🎤 Test This Device</button>
                         <div id="advancedMicStatus"></div>
                     </div>
                 </div>
@@ -1036,9 +766,9 @@
                     <div class="step-description">
                         Click Play to hear MetaKeyAI speak. Make sure you can hear the audio clearly.
                     </div>
-                    <button class="btn" id="ttsPlayBtn">🔊 Play Sample Audio</button>
+                    <button class="metakey-btn" id="ttsPlayBtn">🔊 Play Sample Audio</button>
                     <div id="ttsStatus"></div>
-                    <button class="btn" id="ttsContinueBtn" disabled style="margin-top:1.5rem;">Heard It →</button>
+                    <button class="metakey-btn" id="ttsContinueBtn" disabled style="margin-top: var(--space-lg);">Heard It →</button>
                 </div>
 
                 <!-- Python Setup Step -->
@@ -1049,11 +779,11 @@
                     </div>
                     <div class="status-list" id="pythonStatus">
                         <div class="status-item">
-                            <div class="status-icon"><div class="spinner"></div></div>
+                            <div class="status-icon"><div class="metakey-spinner"></div></div>
                             <div>Installing UV package manager...</div>
                         </div>
                     </div>
-                    <button class="btn secondary" id="skipPythonBtn">Skip Python Setup</button>
+                    <button class="metakey-btn secondary" id="skipPythonBtn">Skip Python Setup</button>
                 </div>
 
                 <!-- Model Selection Step -->
@@ -1065,7 +795,7 @@
                     <div class="model-grid" id="modelGrid">
                         <!-- Models will be populated by JavaScript -->
                     </div>
-                    <button class="btn" id="continueModelsBtn" disabled>Continue</button>
+                    <button class="metakey-btn" id="continueModelsBtn" disabled>Continue</button>
                 </div>
 
                 <!-- Shortcuts Step -->
@@ -1092,7 +822,7 @@
                             <div class="shortcut-desc">Clipboard History</div>
                         </div>
                     </div>
-                    <button class="btn" id="shortcutsNextBtn">Got it!</button>
+                    <button class="metakey-btn" id="shortcutsNextBtn">Got it!</button>
                 </div>
 
                 <!-- Completion Step -->
@@ -1104,12 +834,11 @@
                             MetaKeyAI is ready to boost your productivity. Try pressing <strong>Ctrl+Alt+C</strong> to get started!
                         </div>
                     </div>
-                    <button class="btn" id="finishSetupBtn">Start Using MetaKeyAI</button>
+                    <button class="metakey-btn" id="finishSetupBtn">Start Using MetaKeyAI</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="first-run-setup.js"></script>
 </body>
 </html> 

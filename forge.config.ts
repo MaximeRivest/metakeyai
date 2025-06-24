@@ -61,7 +61,7 @@ const config: ForgeConfig = {
           },
           {
             html: './src/first-run-setup.html',
-            js: './src/first-run-setup.js',
+            js: './src/first-run-setup.ts',
             name: 'first_run_setup_window',
           },
           {

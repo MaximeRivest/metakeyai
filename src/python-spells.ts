@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { PythonEnvironmentManager } from './python-env-manager';
 import { UserDataManager } from './user-data-manager';
+import { PythonSetupManager } from './python-setup-manager';
 
 export interface PythonSpell {
   id: string;
@@ -47,13 +48,51 @@ export class PythonSpellCaster {
   private userDataManager: UserDataManager;
   private isInitialized = false;
   private loadedSpells: Set<string> = new Set(); // Track what's loaded in Python process
-  private pythonEnvManager: PythonEnvironmentManager;
+  private pythonEnvManager: PythonEnvironmentManager | null = null; // Lazy initialization
 
   constructor() {
     this.pythonRunner = new PythonRunner();
     this.userDataManager = UserDataManager.getInstance();
-    this.pythonEnvManager = new PythonEnvironmentManager();
+    // Don't initialize pythonEnvManager here - use lazy initialization
     this.setupIpcHandlers();
+  }
+
+  private getPythonEnvManager(): PythonEnvironmentManager {
+    if (!this.pythonEnvManager) {
+      this.pythonEnvManager = new PythonEnvironmentManager();
+    }
+    return this.pythonEnvManager;
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    console.log('🧙‍♂️ Initializing Python Spell Caster on demand...');
+    
+    try {
+      const pythonSetup = PythonSetupManager.getInstance();
+      const setupStatus = await pythonSetup.checkSetupStatus();
+      
+      if (!setupStatus.isConfigured) {
+        console.log('⚠️ Python not configured - initializing with limited functionality');
+        await this.initializeFallback();
+      } else {
+        console.log('✅ Python environment detected - initializing full functionality');
+        await this.initialize();
+      }
+    } catch (error) {
+      console.error('❌ Failed to initialize Python Spell Caster on demand:', error);
+      // Try fallback initialization
+      try {
+        await this.initializeFallback();
+        console.log('⚠️ Spell Caster initialized in fallback mode after error');
+      } catch (fallbackError) {
+        console.error('❌ Failed to initialize Spell Caster even in fallback mode:', fallbackError);
+        throw error;
+      }
+    }
   }
 
   private getScriptPath(filename: string): string {
@@ -166,37 +205,44 @@ export class PythonSpellCaster {
 
     // Get all spells
     ipcMain.handle('get-spell-book', async () => {
+      await this.ensureInitialized();
       return this.getSpellBook();
     });
 
     // Get quick slots
     ipcMain.handle('get-quick-slots', async () => {
+      await this.ensureInitialized();
       return this.getQuickSlots();
     });
 
     // Assign spell to quick slot
     ipcMain.handle('assign-quick-slot', async (event, spellId: string, slot: number) => {
+      await this.ensureInitialized();
       return this.assignQuickSlot(spellId, slot);
     });
 
     // Add custom spell
     ipcMain.handle('add-custom-spell', async (event, spell: Partial<PythonSpell>) => {
+      await this.ensureInitialized();
       return this.addCustomSpell(spell);
     });
 
     // Update spell
     ipcMain.handle('update-spell', async (event, spellId: string, updates: Partial<PythonSpell>) => {
+      await this.ensureInitialized();
       return this.updateSpell(spellId, updates);
     });
 
     // Delete spell
     ipcMain.handle('delete-spell', async (event, spellId: string) => {
+      await this.ensureInitialized();
       return this.deleteSpell(spellId);
     });
 
     // Test Python setup
     ipcMain.handle('test-python', async () => {
       try {
+        await this.ensureInitialized();
         const info = await this.pythonRunner.getInfo();
         return { success: true, info };
       } catch (error) {
@@ -207,6 +253,7 @@ export class PythonSpellCaster {
     // Test custom spell
     ipcMain.handle('test-custom-spell', async (event, spell: Partial<PythonSpell>, input?: string) => {
       try {
+        await this.ensureInitialized();
         const result = await this.testSpell(spell, input);
         return result;
       } catch (error) {
@@ -363,7 +410,7 @@ export class PythonSpellCaster {
     
     try {
       // Get current environment state
-      const envInfo = await this.pythonEnvManager.getEnvironmentInfo();
+      const envInfo = await this.getPythonEnvManager().getEnvironmentInfo();
       const installedPackages = envInfo.packages;
 
       // Check explicit conflicts
@@ -432,17 +479,17 @@ export class PythonSpellCaster {
     for (const installCmd of depInfo.jupyterInstalls || []) {
       if (installCmd.startsWith('uv add')) {
         const packages = installCmd.substring(6).trim().split(' ');
-        await this.pythonEnvManager.installSpellDependencies(packages);
+        await this.getPythonEnvManager().installSpellDependencies(packages);
       } else if (installCmd.startsWith('pip install')) {
         // Convert to UV add
         const packages = installCmd.substring(11).trim().split(' ');
-        await this.pythonEnvManager.installSpellDependencies(packages);
+        await this.getPythonEnvManager().installSpellDependencies(packages);
       }
     }
 
     // Install required dependencies
     if (depInfo.requirements.length > 0) {
-      await this.pythonEnvManager.installSpellDependencies(depInfo.requirements);
+      await this.getPythonEnvManager().installSpellDependencies(depInfo.requirements);
     }
   }
 
@@ -474,6 +521,9 @@ export class PythonSpellCaster {
    * Enhanced spell casting with lazy loading
    */
   async castSpell(spellId: string, input?: string): Promise<SpellResult> {
+    // Ensure the spell caster is initialized before casting
+    await this.ensureInitialized();
+    
     const startTime = Date.now();
     
     try {
@@ -753,8 +803,13 @@ export class PythonSpellCaster {
     return Array.from(this.spellBook.values());
   }
 
+  getSpellBookLightweight(): PythonSpell[] {
+    // Return spell book without initializing Python - for UI display purposes
+    return Array.from(this.spellBook.values());
+  }
+
   getQuickSlots(): (PythonSpell | null)[] {
-    return this.quickSlots;
+    return [...this.quickSlots];
   }
 
   assignQuickSlot(spellId: string, slot: number): boolean {

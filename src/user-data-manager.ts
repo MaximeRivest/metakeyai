@@ -23,11 +23,17 @@ export class UserDataManager {
   private readonly databaseDir: string;
 
   private constructor() {
-    // Use a hidden directory in user's home for cross-platform compatibility
-    // This survives app updates and is user-specific
-    this.userDataRoot = path.join(homedir(), '.metakeyai');
+    // Use Electron's standard userData directory for proper app integration
+    // This is the recommended approach for Electron apps
+    try {
+      this.userDataRoot = app.getPath('userData');
+    } catch (error) {
+      // Fallback for cases where app might not be ready yet
+      console.warn('⚠️ Electron app not ready, using fallback userData path');
+      this.userDataRoot = path.join(homedir(), '.config', 'metakeyai-app');
+    }
     
-    // Organize data by purpose
+    // Organize data by purpose within the standard directory
     this.spellsDir = path.join(this.userDataRoot, 'spells');
     this.pythonDir = path.join(this.userDataRoot, 'python-env');
     this.settingsDir = path.join(this.userDataRoot, 'settings');
@@ -104,13 +110,6 @@ export class UserDataManager {
 
   public getPythonProjectDir(): string {
     return path.join(this.pythonDir, 'project');
-  }
-
-  public shouldUseCentralizedPython(): boolean {
-    // Check if we have a centralized Python environment
-    const pythonExe = process.platform === 'win32' ? 'python.exe' : 'python';
-    const centralizedPython = path.join(this.pythonDir, 'bin', pythonExe);
-    return fs.existsSync(centralizedPython);
   }
 
   // Settings Management
@@ -379,6 +378,44 @@ export class UserDataManager {
     } catch (error) {
       console.error('❌ Failed to migrate legacy Python configuration:', error);
       return false;
+    }
+  }
+
+  // General Settings Management
+  public getSettings(): any {
+    try {
+      const settingsPath = this.getSettingsPath();
+      if (fs.existsSync(settingsPath)) {
+        const data = fs.readFileSync(settingsPath, 'utf8');
+        return JSON.parse(data);
+      }
+      return {};
+    } catch (error) {
+      console.error('❌ Failed to load general settings:', error);
+      return {};
+    }
+  }
+
+  public saveSettings(settings: any): void {
+    try {
+      const settingsPath = this.getSettingsPath();
+      fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+      console.log(`⚙️ General settings saved to: ${settingsPath}`);
+    } catch (error) {
+      console.error('❌ Failed to save general settings:', error);
+      throw error;
+    }
+  }
+
+  public updateSettings(partialSettings: any): void {
+    try {
+      const currentSettings = this.getSettings();
+      const updatedSettings = { ...currentSettings, ...partialSettings };
+      this.saveSettings(updatedSettings);
+      console.log(`⚙️ General settings updated`);
+    } catch (error) {
+      console.error('❌ Failed to update general settings:', error);
+      throw error;
     }
   }
 } 

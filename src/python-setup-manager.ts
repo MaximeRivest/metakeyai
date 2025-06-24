@@ -432,11 +432,13 @@ export class PythonSetupManager extends EventEmitter {
 
     try {
       console.log('🚀 Starting automatic Python setup with UV...');
+      this.emit('progress', 'Starting automatic Python setup...');
 
       // Step 1: Install UV if needed
       let uvPath = await this.findUv();
       if (!uvPath) {
         console.log('📦 Installing UV...');
+        this.emit('progress', 'Installing UV package manager...');
         const installed = await this.installUv();
         if (!installed) {
           throw new Error('Failed to install UV. Please check your internet connection and try again.');
@@ -447,19 +449,24 @@ export class PythonSetupManager extends EventEmitter {
         }
       } else {
         console.log('✅ UV found at:', uvPath);
+        this.emit('progress', 'UV package manager already available');
       }
 
       // Step 2: Ensure Python is available (let UV manage Python)
       console.log('🐍 Ensuring Python availability...');
+      this.emit('progress', 'Checking Python availability...');
       try {
         // Try to find a compatible Python version
         const pythonFindResult = await this.runCommand(uvPath, ['python', 'find', '>=3.9']);
         console.log('✅ Compatible Python found:', pythonFindResult.stdout.trim());
+        this.emit('progress', 'Compatible Python found');
       } catch (error) {
         console.log('📥 No compatible Python found, installing Python 3.11 with UV...');
+        this.emit('progress', 'Installing Python 3.11...');
         try {
           await this.runCommand(uvPath, ['python', 'install', '3.11']);
           console.log('✅ Python 3.11 installed successfully');
+          this.emit('progress', 'Python 3.11 installed successfully');
         } catch (installError) {
           throw new Error(`Failed to install Python with UV: ${(installError as Error).message}`);
         }
@@ -467,15 +474,19 @@ export class PythonSetupManager extends EventEmitter {
 
       // Step 3: Create project environment
       console.log('🏗️ Setting up Python project...');
+      this.emit('progress', 'Setting up Python project environment...');
       const projectPath = await this.createProjectEnvironment(uvPath);
       console.log('✅ Project environment created at:', projectPath);
+      this.emit('progress', 'Project environment created');
       
       // Step 4: Install dependencies without building the project
       console.log('📦 Installing project dependencies...');
+      this.emit('progress', 'Installing Python dependencies...');
       await this.installDependencies(uvPath, projectPath);
 
       // Step 5: Verify setup
       console.log('🔍 Verifying setup...');
+      this.emit('progress', 'Verifying installation...');
       await this.verifyUvSetup();
       
       // Force recheck setup status to ensure everything is detected properly
@@ -487,16 +498,25 @@ export class PythonSetupManager extends EventEmitter {
         this.saveConfiguration();
         
         console.log('✅ Auto setup completed successfully!');
-        await dialog.showMessageBox({
-          type: 'info',
-          title: 'Python Setup Complete',
-          message: 'Python environment has been set up successfully!',
-          detail: 'MetaKeyAI can now run AI spells and quick edit features.',
-          buttons: ['OK']
-        });
+        this.emit('progress', 'Python setup completed successfully!');
+        
+        // Don't show dialog during first-run setup
+        if (require('electron').BrowserWindow.getAllWindows().some((w: any) => w.getTitle() === 'MetaKeyAI Setup')) {
+          // First-run setup is active, don't show dialog
+          console.log('ℹ️ First-run setup active, skipping completion dialog');
+        } else {
+          await dialog.showMessageBox({
+            type: 'info',
+            title: 'Python Setup Complete',
+            message: 'Python environment has been set up successfully!',
+            detail: 'MetaKeyAI can now run AI spells and quick edit features.',
+            buttons: ['OK']
+          });
+        }
         return true;
       } else {
         console.error('❌ Setup verification failed - status:', this.setupStatus);
+        this.emit('progress', 'Setup verification failed');
         throw new Error('Setup verification failed. The environment was created but may not be properly configured.');
       }
 

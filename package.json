@@ -5,18 +5,17 @@
   "description": "My Electron application description",
   "main": ".webpack/main",
   "scripts": {
-    "start": "npm run setup:python && electron-forge start",
-    "package": "npm run setup:python && npm run build:python && electron-forge package",
-    "make": "npm run setup:python && npm run build:python && electron-forge make",
-    "publish": "npm run setup:python && npm run build:python && electron-forge publish",
+    "start": "electron-forge start",
+    "package": "npm run build:python && electron-forge package",
+    "make": "npm run build:python && electron-forge make",
+    "publish": "npm run build:python && electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
     "setup:python": "node scripts/setup-python.js",
     "setup:audio": "node scripts/setup-audio-binaries.js",
     "build:python": "node scripts/setup-windows-python.js && node scripts/setup-audio-binaries.js && node scripts/build-python.js",
     "clean:python": "rm -rf python-env",
     "dev": "electron-forge start",
-    "release": "node scripts/create-release.js",
-    "postinstall": "node scripts/setup-python.js || echo 'Python setup skipped'"
+    "release": "node scripts/create-release.js"
   },
   "keywords": [],
   "author": {

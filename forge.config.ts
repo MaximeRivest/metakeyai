@@ -55,6 +55,11 @@ const config: ForgeConfig = {
         config: rendererConfig,
         entryPoints: [
           {
+            html: './src/first-run-setup.html',
+            js: './src/first-run-setup.js',
+            name: 'first_run_setup_window',
+          },
+          {
             html: './src/visualizer.html',
             js: './src/visualizer.ts',
             name: 'visualizer_window',

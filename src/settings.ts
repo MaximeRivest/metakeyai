@@ -1,5 +1,8 @@
 const { ipcRenderer: settingsIpcRenderer } = require('electron');
 
+// Import UserDataManager for persistent settings
+let userDataManager: any = null;
+
 interface Settings {
   OPENAI_API_KEY: string;
   WHISPER_MODEL: string;
@@ -96,12 +99,31 @@ class SettingsRenderer {
     this.pythonSetupProgress = document.getElementById('python-setup-progress')!;
     this.pythonSetupLog = document.getElementById('python-setup-log')!;
 
+    // Initialize UserDataManager access
+    this.initializeUserDataManager();
+
     this.setupEventListeners();
     this.loadSettings();
     this.loadShortcuts();
     this.loadEnvSettings();
     this.loadMicrophoneSettings();
     this.loadPythonSetupStatus();
+  }
+
+  private async initializeUserDataManager() {
+    try {
+      // UserDataManager is now accessed via individual IPC calls
+      userDataManager = {
+        getSettings: () => settingsIpcRenderer.invoke('get-user-settings'),
+        saveSettings: (settings: any) => settingsIpcRenderer.invoke('save-user-settings', settings),
+        updateSettings: (partialSettings: any) => settingsIpcRenderer.invoke('update-user-settings', partialSettings),
+        loadAudioSettings: () => settingsIpcRenderer.invoke('load-audio-settings'),
+        saveAudioSettings: (settings: any) => settingsIpcRenderer.invoke('save-audio-settings', settings)
+      };
+      console.log('✅ UserDataManager proxy initialized');
+    } catch (error) {
+      console.error('Failed to initialize UserDataManager:', error);
+    }
   }
 
   private setupEventListeners() {

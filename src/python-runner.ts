@@ -26,21 +26,28 @@ export interface PythonResult {
 export class PythonRunner extends EventEmitter {
   private pythonPath: string;
   private scriptsDir: string;
-  private envManager: PythonEnvironmentManager;
+  private envManager: PythonEnvironmentManager | null = null; // Lazy initialization
   private envInfo: PythonEnvInfo | null = null;
 
   constructor(pythonPath?: string) {
     super();
-    this.envManager = new PythonEnvironmentManager();
+    // Don't initialize envManager here - use lazy initialization
     this.pythonPath = pythonPath || this.findPython();
     this.scriptsDir = path.join(__dirname, 'python_scripts');
     this.ensureScriptsDirectory();
   }
 
+  private getEnvManager(): PythonEnvironmentManager {
+    if (!this.envManager) {
+      this.envManager = new PythonEnvironmentManager();
+    }
+    return this.envManager;
+  }
+
   // Initialize the Python environment
   async initializeEnvironment(): Promise<PythonEnvInfo> {
     try {
-      this.envInfo = await this.envManager.initialize();
+      this.envInfo = await this.getEnvManager().initialize();
       this.pythonPath = this.envInfo.pythonPath;
       console.log(`🐍 Using ${this.envInfo.isEmbedded ? 'embedded' : 'system'} Python: ${this.envInfo.version}`);
       return this.envInfo;
@@ -301,9 +308,10 @@ export class PythonRunner extends EventEmitter {
 
   // Method to install Python packages
   async installPackage(packageName: string): Promise<boolean> {
-    if (this.envManager && this.envManager.isReady()) {
+    const envManager = this.getEnvManager();
+    if (envManager && envManager.isReady()) {
       // Use the environment manager for package installation
-      return await this.envManager.installPackage(packageName);
+      return await envManager.installPackage(packageName);
     }
 
     // Fallback to the old method

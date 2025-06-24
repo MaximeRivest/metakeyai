@@ -19,6 +19,7 @@ export class ShortcutsManager {
   private shortcuts: Map<string, ShortcutConfig> = new Map();
   private userDataManager: UserDataManager;
   private isInitialized = false;
+  private handlers: Record<string, () => void | Promise<void>> = {};
 
   private constructor() {
     this.userDataManager = UserDataManager.getInstance();
@@ -32,12 +33,24 @@ export class ShortcutsManager {
     return ShortcutsManager.instance;
   }
 
-  async initialize(handlers: Record<string, () => void | Promise<void>>): Promise<void> {
+  setHandlers(handlers: Record<string, () => void | Promise<void>>): void {
+    this.handlers = handlers;
+    console.log('⌨️ Shortcut handlers set for', Object.keys(handlers).length, 'shortcuts');
+  }
+
+  async initialize(handlers?: Record<string, () => void | Promise<void>>): Promise<void> {
     if (this.isInitialized) {
       console.log('⌨️ Shortcuts Manager already initialized, skipping.');
       return;
     }
     console.log('⌨️ Initializing Shortcuts Manager...');
+
+    // Use provided handlers or previously set handlers
+    const activeHandlers = handlers || this.handlers;
+    if (Object.keys(activeHandlers).length === 0) {
+      console.error('❌ No handlers provided for shortcuts initialization');
+      return;
+    }
 
     // Define default shortcuts
     const defaultShortcuts: Omit<ShortcutConfig, 'handler'>[] = [
@@ -183,7 +196,7 @@ export class ShortcutsManager {
 
     // Register shortcuts with handlers
     for (const shortcutData of defaultShortcuts) {
-      const handler = handlers[shortcutData.id];
+      const handler = activeHandlers[shortcutData.id];
       if (handler) {
         const shortcut: ShortcutConfig = {
           ...shortcutData,

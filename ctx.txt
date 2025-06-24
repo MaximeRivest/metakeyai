@@ -1,0 +1,12 @@
+PythonEnvironmentManager Code Usage Analysis
+=============================================
+Generated: 2025-06-24, 9:55:23 a.m.
+Target: src/python-env-manager.ts
+Class: PythonEnvironmentManager
+
+SUMMARY:
+========
+Total Elements: 1
+✅ Used: 0
+🟡 Internal Only: 0
+❌ Unused: 0

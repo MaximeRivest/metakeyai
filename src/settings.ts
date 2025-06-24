@@ -2,6 +2,7 @@ const { ipcRenderer: settingsIpcRenderer } = require('electron');
 
 interface Settings {
   OPENAI_API_KEY: string;
+  GEMINI_API_KEY: string;
   WHISPER_MODEL: string;
   TTS_VOICE: string;
   MICROPHONE_DEVICE?: string;
@@ -18,6 +19,7 @@ interface ShortcutConfig {
 
 class SettingsRenderer {
   private apiKeyInput: HTMLInputElement;
+  private geminiApiKeyInput: HTMLInputElement; // Added for Gemini
   private whisperModelSelect: HTMLSelectElement;
   private ttsVoiceSelect: HTMLSelectElement;
   private testVoiceBtn: HTMLButtonElement;
@@ -57,6 +59,7 @@ class SettingsRenderer {
   
   private currentSettings: Settings = {
     OPENAI_API_KEY: '',
+    GEMINI_API_KEY: '', // Added for Gemini
     WHISPER_MODEL: 'whisper-1',
     TTS_VOICE: 'ballad',
     MICROPHONE_DEVICE: 'auto'
@@ -64,6 +67,7 @@ class SettingsRenderer {
 
   constructor() {
     this.apiKeyInput = document.getElementById('api-key') as HTMLInputElement;
+    this.geminiApiKeyInput = document.getElementById('gemini-api-key') as HTMLInputElement; // Added for Gemini
     this.whisperModelSelect = document.getElementById('whisper-model') as HTMLSelectElement;
     this.ttsVoiceSelect = document.getElementById('tts-voice') as HTMLSelectElement;
     this.testVoiceBtn = document.getElementById('test-voice') as HTMLButtonElement;
@@ -130,8 +134,14 @@ class SettingsRenderer {
       this.validateApiKey();
     });
 
+    // Gemini API key input validation (if needed, though dspy handles it)
+    this.geminiApiKeyInput.addEventListener('input', () => {
+      // Basic validation or leave to backend
+      this.markUnsaved();
+    });
+
     // Form change detection
-    [this.apiKeyInput, this.whisperModelSelect, this.ttsVoiceSelect, this.microphoneSelect].forEach(element => {
+    [this.apiKeyInput, this.geminiApiKeyInput, this.whisperModelSelect, this.ttsVoiceSelect, this.microphoneSelect].forEach(element => {
       element.addEventListener('change', () => {
         this.markUnsaved();
       });
@@ -219,6 +229,10 @@ class SettingsRenderer {
       this.apiKeyInput.value = this.currentSettings.OPENAI_API_KEY.substring(0, 8) + '...';
       this.apiKeyInput.setAttribute('data-full-key', this.currentSettings.OPENAI_API_KEY);
     }
+    if (this.currentSettings.GEMINI_API_KEY) {
+      this.geminiApiKeyInput.value = this.currentSettings.GEMINI_API_KEY.substring(0, 8) + '...';
+      this.geminiApiKeyInput.setAttribute('data-full-key', this.currentSettings.GEMINI_API_KEY);
+    }
     
     this.whisperModelSelect.value = this.currentSettings.WHISPER_MODEL;
     this.ttsVoiceSelect.value = this.currentSettings.TTS_VOICE;
@@ -231,7 +245,8 @@ class SettingsRenderer {
     console.log('💾 Saving settings...');
     
     const settings: Settings = {
-      OPENAI_API_KEY: this.getApiKey(),
+      OPENAI_API_KEY: this.getApiKey('openai'),
+      GEMINI_API_KEY: this.getApiKey('gemini'),
       WHISPER_MODEL: this.whisperModelSelect.value,
       TTS_VOICE: this.ttsVoiceSelect.value,
       MICROPHONE_DEVICE: this.microphoneSelect.value
@@ -239,7 +254,8 @@ class SettingsRenderer {
 
     console.log('📤 Sending settings to main process:', {
       ...settings,
-      OPENAI_API_KEY: settings.OPENAI_API_KEY ? settings.OPENAI_API_KEY.substring(0, 8) + '...' : 'empty'
+      OPENAI_API_KEY: settings.OPENAI_API_KEY ? settings.OPENAI_API_KEY.substring(0, 8) + '...' : 'empty',
+      GEMINI_API_KEY: settings.GEMINI_API_KEY ? settings.GEMINI_API_KEY.substring(0, 8) + '...' : 'empty'
     });
 
     settingsIpcRenderer.send('save-settings', settings);
@@ -251,6 +267,8 @@ class SettingsRenderer {
     
     this.apiKeyInput.value = '';
     this.apiKeyInput.removeAttribute('data-full-key');
+    this.geminiApiKeyInput.value = ''; // Added for Gemini
+    this.geminiApiKeyInput.removeAttribute('data-full-key'); // Added for Gemini
     this.whisperModelSelect.value = 'whisper-1';
     this.ttsVoiceSelect.value = 'Nova';
     this.microphoneSelect.value = 'auto';
@@ -280,7 +298,7 @@ class SettingsRenderer {
   }
 
   private validateApiKey() {
-    const apiKey = this.getApiKey();
+    const apiKey = this.getApiKey('openai'); // Only validate OpenAI key for now
     
     if (!apiKey) {
       this.updateApiStatus(false);
@@ -296,13 +314,14 @@ class SettingsRenderer {
     settingsIpcRenderer.send('validate-api-key', apiKey);
   }
 
-  private getApiKey(): string {
+  private getApiKey(type: 'openai' | 'gemini'): string {
+    const inputElement = type === 'openai' ? this.apiKeyInput : this.geminiApiKeyInput;
     // If the input shows masked value, get the full key from data attribute
-    const fullKey = this.apiKeyInput.getAttribute('data-full-key');
-    if (fullKey && this.apiKeyInput.value.includes('...')) {
+    const fullKey = inputElement.getAttribute('data-full-key');
+    if (fullKey && inputElement.value.includes('...')) {
       return fullKey;
     }
-    return this.apiKeyInput.value.trim();
+    return inputElement.value.trim();
   }
 
   private updateApiStatus(isValid: boolean) {

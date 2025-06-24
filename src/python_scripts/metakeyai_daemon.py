@@ -101,15 +101,26 @@ def _configure_llm_from_env():
     if not dspy:
         log("❌ Cannot configure LLM - DSPy not available")
         return False
-        
+
     model_name = os.getenv("METAKEYAI_LLM")
     if not model_name:
         log("⚠️ No METAKEYAI_LLM environment variable set")
         return False
-        
+
     try:
         log(f"🔧 Configuring DSPy LLM: {model_name}")
-        dspy.configure(lm=dspy.LM(model_name))
+        if model_name.startswith("gemini/"):
+            gemini_api_key = os.getenv("METAKEYAI_GEMINI_API_KEY")
+            if not gemini_api_key:
+                log("⚠️ METAKEYAI_GEMINI_API_KEY not set for Gemini model")
+                return False
+            dspy.configure(lm=dspy.LM(model_name, api_key=gemini_api_key))
+        else:
+            # Assuming OpenAI or other models that dspy can handle directly
+            # with OPENAI_API_KEY (which dspy picks up automatically if set,
+            # or if the model string itself is enough like for ollama/ollama-llama3)
+            dspy.configure(lm=dspy.LM(model_name))
+
         log("✅ DSPy LLM configured successfully")
         return True
     except Exception as e:

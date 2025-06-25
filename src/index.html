@@ -21,20 +21,9 @@
         }
 
         .welcome-window {
-            /* Floating glass window like the pastille */
-            background: var(--glass-dark);
-            backdrop-filter: blur(30px) saturate(120%);
-            border: 1px solid var(--border-light);
-            border-radius: var(--radius-xl);
-            box-shadow: var(--shadow-glass);
             width: 600px;
             height: 600px;
-            position: relative;
-            overflow: hidden;
             animation: floatIn 1s ease-out;
-            
-            /* Make it draggable */
-            -webkit-app-region: drag;
         }
 
         .welcome-window::before {
@@ -137,19 +126,17 @@
             font-size: 8px;
         }
 
-        /* Content container */
+        /* Content container with proper sizing */
         .content {
-            padding: 60px 40px 40px 40px;
-            height: calc(100% - 100px);
             display: flex;
             flex-direction: column;
-            -webkit-app-region: no-drag;
+            height: 100%;
         }
 
         /* Blue orb logo like the pastille */
         .logo {
-            font-size: 4rem;
-            margin-bottom: var(--space-lg);
+            font-size: 3rem;
+            margin-bottom: var(--space-md);
             text-align: center;
             animation: float 3s ease-in-out infinite;
             filter: drop-shadow(0 0 20px var(--color-primary));
@@ -162,8 +149,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 80px;
-            height: 80px;
+            width: 60px;
+            height: 60px;
             background: radial-gradient(circle, var(--color-primary) 0%, var(--color-primary-end) 70%, transparent 100%);
             border-radius: 50%;
             box-shadow: 
@@ -181,7 +168,7 @@
 
         @keyframes float {
             0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
+            50% { transform: translateY(-8px); }
         }
 
         @keyframes orbPulse {
@@ -201,10 +188,10 @@
         }
 
         .title {
-            font-size: 2.5rem;
+            font-size: 2rem;
             font-weight: 700;
             text-align: center;
-            margin: 0 0 var(--space-sm) 0;
+            margin: 0 0 var(--space-xs) 0;
             background: var(--gradient-primary);
             background-size: 200% 200%;
             -webkit-background-clip: text;
@@ -219,10 +206,10 @@
         }
 
         .subtitle {
-            font-size: 1rem;
+            font-size: 0.85rem;
             color: var(--text-secondary);
             text-align: center;
-            margin-bottom: var(--space-xl);
+            margin-bottom: var(--space-lg);
             opacity: 0;
             animation: fadeIn 1s ease-out 0.5s forwards;
         }
@@ -232,12 +219,13 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* Feature cards grid */
+        /* Feature cards grid - properly sized */
         .features-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: var(--space-md);
+            gap: var(--space-sm);
             flex: 1;
+            margin-bottom: var(--space-md);
             opacity: 0;
             animation: fadeIn 1s ease-out 1s forwards;
         }
@@ -247,7 +235,7 @@
             backdrop-filter: blur(20px);
             border: 1px solid var(--border-light);
             border-radius: var(--radius-lg);
-            padding: var(--space-lg);
+            padding: var(--space-md);
             transition: var(--transition-normal);
             cursor: pointer;
             position: relative;
@@ -256,6 +244,7 @@
             flex-direction: column;
             align-items: center;
             text-align: center;
+            min-height: 80px;
         }
 
         .feature-card::before {
@@ -270,7 +259,7 @@
         }
 
         .feature-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-3px);
             border-color: var(--color-primary);
             box-shadow: 
                 var(--shadow-glass),
@@ -282,23 +271,23 @@
         }
 
         .feature-icon {
-            font-size: 2rem;
-            margin-bottom: var(--space-sm);
+            font-size: 1.5rem;
+            margin-bottom: var(--space-xs);
             animation: pulse 2s ease-in-out infinite;
             filter: drop-shadow(0 0 10px var(--color-primary));
         }
 
         .feature-title {
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 600;
             color: var(--text-primary);
             margin-bottom: var(--space-xs);
         }
 
         .feature-description {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: var(--text-muted);
-            line-height: 1.4;
+            line-height: 1.3;
             flex: 1;
         }
 
@@ -307,7 +296,6 @@
             display: flex;
             gap: var(--space-md);
             justify-content: center;
-            margin-top: var(--space-lg);
             opacity: 0;
             animation: fadeIn 1s ease-out 1.5s forwards;
         }
@@ -318,7 +306,7 @@
             border: none;
             padding: var(--space-sm) var(--space-lg);
             border-radius: var(--radius-lg);
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             font-weight: 600;
             cursor: pointer;
             transition: var(--transition-normal);
@@ -426,7 +414,7 @@
     </style>
   </head>
   <body>
-    <div class="welcome-window">
+    <div class="welcome-window window-frame low-transparency">
         <!-- Traffic light buttons -->
         <div class="traffic-lights">
             <div class="traffic-light close" onclick="closeWelcome()"></div>
@@ -444,7 +432,7 @@
             <div class="sparkle"></div>
         </div>
 
-        <div class="content">
+        <div class="window-content content">
             <div class="logo"></div>
             <h1 class="title">Welcome to MetaKeyAI</h1>
             <p class="subtitle">Your AI-powered clipboard companion for seamless productivity</p>
@@ -453,29 +441,29 @@
                 <div class="feature-card" onclick="openSettings()">
                     <span class="feature-icon">⚙️</span>
                     <div class="feature-title">Settings</div>
-                    <div class="feature-description">Configure your AI models, microphone, and pastille position</div>
+                    <div class="feature-description">Configure AI models, mic, and position</div>
                 </div>
 
                 <div class="feature-card" onclick="openSpellBook()">
                     <span class="feature-icon">🧙‍♂️</span>
                     <div class="feature-title">Spell Book</div>
-                    <div class="feature-description">Create and manage Python spells for custom automation</div>
+                    <div class="feature-description">Create Python spells for automation</div>
                 </div>
 
                 <div class="feature-card" onclick="showShortcuts()">
                     <span class="feature-icon">⌨️</span>
                     <div class="feature-title">Shortcuts</div>
                     <div class="feature-description">
-                        <strong>Ctrl+Alt+W</strong> - Voice Record<br>
-                        <strong>Ctrl+Alt+Q</strong> - AI Quick Edit<br>
-                        <strong>Ctrl+Alt+E</strong> - Text-to-Speech
+                        Ctrl+Alt+W - Record<br>
+                        Ctrl+Alt+Q - AI Edit<br>
+                        Ctrl+Alt+E - Speak
                     </div>
                 </div>
 
                 <div class="feature-card" onclick="startTour()">
                     <span class="feature-icon">🎯</span>
                     <div class="feature-title">Quick Start</div>
-                    <div class="feature-description">Learn how to use MetaKeyAI's powerful features</div>
+                    <div class="feature-description">Learn MetaKeyAI's features</div>
                 </div>
             </div>
 
@@ -486,7 +474,7 @@
                 </button>
                 <button class="action-btn" onclick="openSettings()">
                     <span>⚙️</span>
-                    Open Settings
+                    Settings
                 </button>
             </div>
         </div>

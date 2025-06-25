@@ -262,7 +262,8 @@ export class UserDataManager {
         shortcutsSettings: fs.existsSync(this.getShortcutsSettingsPath()),
         modelConfig: fs.existsSync(this.getModelConfigPath()),
         pythonConfig: fs.existsSync(this.getPythonConfigPath()),
-        pythonEnv: fs.existsSync(this.getPythonEnvDir())
+        pythonEnv: fs.existsSync(this.getPythonEnvDir()),
+        pastillePosition: fs.existsSync(this.getPastillePositionPath())
       }
     };
   }
@@ -378,6 +379,86 @@ export class UserDataManager {
     } catch (error) {
       console.error('❌ Failed to migrate legacy Python configuration:', error);
       return false;
+    }
+  }
+
+  // Pastille Position Management
+  public getPastillePositionPath(): string {
+    return path.join(this.settingsDir, 'pastille-position.json');
+  }
+
+  public getPastilleConfigPath(): string {
+    return path.join(this.settingsDir, 'pastille-config.json');
+  }
+
+  public savePastillePosition(position: { x: number; y: number; displayId?: number }): void {
+    try {
+      const positionPath = this.getPastillePositionPath();
+      const positionData = {
+        ...position,
+        savedAt: new Date().toISOString()
+      };
+      fs.writeFileSync(positionPath, JSON.stringify(positionData, null, 2));
+      console.log(`📍 Pastille position saved: ${position.x}, ${position.y}`);
+    } catch (error) {
+      console.error('❌ Failed to save pastille position:', error);
+    }
+  }
+
+  public savePastilleConfig(config: {
+    displayMode: string;
+    mode: string;
+    x?: number;
+    y?: number;
+  }): void {
+    try {
+      const configPath = this.getPastilleConfigPath();
+      const configData = {
+        ...config,
+        savedAt: new Date().toISOString()
+      };
+      fs.writeFileSync(configPath, JSON.stringify(configData, null, 2));
+      console.log(`📍 Pastille configuration saved:`, config);
+    } catch (error) {
+      console.error('❌ Failed to save pastille configuration:', error);
+    }
+  }
+
+  public loadPastillePosition(): { x: number; y: number; displayId?: number; savedAt?: string } | null {
+    try {
+      const positionPath = this.getPastillePositionPath();
+      if (fs.existsSync(positionPath)) {
+        const data = fs.readFileSync(positionPath, 'utf8');
+        const position = JSON.parse(data);
+        console.log(`📍 Pastille position loaded: ${position.x}, ${position.y}`);
+        return position;
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to load pastille position:', error);
+      return null;
+    }
+  }
+
+  public loadPastilleConfig(): {
+    displayMode: string;
+    mode: string;
+    x?: number;
+    y?: number;
+    savedAt?: string;
+  } | null {
+    try {
+      const configPath = this.getPastilleConfigPath();
+      if (fs.existsSync(configPath)) {
+        const data = fs.readFileSync(configPath, 'utf8');
+        const config = JSON.parse(data);
+        console.log(`📍 Pastille configuration loaded:`, config);
+        return config;
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to load pastille configuration:', error);
+      return null;
     }
   }
 

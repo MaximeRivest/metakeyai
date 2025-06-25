@@ -53,10 +53,24 @@ class SettingsRenderer {
   private pythonSetupProgress: HTMLElement;
   private pythonSetupLog: HTMLElement;
   
+  // Pastille Position elements
+  private pastilleDisplaySelect: HTMLSelectElement;
+  private positionCenterRadio: HTMLInputElement;
+  private positionCustomRadio: HTMLInputElement;
+  private customPositionGroup: HTMLElement;
+  private pastilleXInput: HTMLInputElement;
+  private pastilleYInput: HTMLInputElement;
+  private pastillePositionDetails: HTMLElement;
+  private previewPositionBtn: HTMLButtonElement;
+  private resetPositionBtn: HTMLButtonElement;
+  private applyPositionBtn: HTMLButtonElement;
+  private displayHelp: HTMLElement;
+  
   private shortcuts: ShortcutConfig[] = [];
   private editingShortcut: string | null = null;
   private envVars: Record<string,string> = {};
   private llms: string[] = [];
+  private currentPastillePosition: any = null;
   
   private currentSettings: Settings = {
     OPENAI_API_KEY: '',
@@ -99,6 +113,19 @@ class SettingsRenderer {
     this.pythonSetupProgress = document.getElementById('python-setup-progress')!;
     this.pythonSetupLog = document.getElementById('python-setup-log')!;
 
+    // Pastille Position elements
+    this.pastilleDisplaySelect = document.getElementById('pastille-display') as HTMLSelectElement;
+    this.positionCenterRadio = document.getElementById('position-center') as HTMLInputElement;
+    this.positionCustomRadio = document.getElementById('position-custom') as HTMLInputElement;
+    this.customPositionGroup = document.getElementById('custom-position-group')!;
+    this.pastilleXInput = document.getElementById('pastille-x') as HTMLInputElement;
+    this.pastilleYInput = document.getElementById('pastille-y') as HTMLInputElement;
+    this.pastillePositionDetails = document.getElementById('pastille-position-details')!;
+    this.previewPositionBtn = document.getElementById('preview-position') as HTMLButtonElement;
+    this.resetPositionBtn = document.getElementById('reset-position') as HTMLButtonElement;
+    this.applyPositionBtn = document.getElementById('apply-position') as HTMLButtonElement;
+    this.displayHelp = document.getElementById('display-help')!;
+
     // Initialize UserDataManager access
     this.initializeUserDataManager();
 
@@ -108,6 +135,7 @@ class SettingsRenderer {
     this.loadEnvSettings();
     this.loadMicrophoneSettings();
     this.loadPythonSetupStatus();
+    this.loadPastillePositionSettings();
   }
 
   private async initializeUserDataManager() {
@@ -225,6 +253,46 @@ class SettingsRenderer {
 
     settingsIpcRenderer.on('python-setup-progress', (_e: any, message: string) => {
       this.updatePythonSetupProgress(message);
+    });
+
+    // Pastille Position event listeners
+    this.previewPositionBtn.addEventListener('click', () => {
+      this.previewPastillePosition();
+    });
+
+    this.resetPositionBtn.addEventListener('click', () => {
+      this.resetPastillePosition();
+    });
+
+    this.applyPositionBtn.addEventListener('click', () => {
+      this.applyPastillePosition();
+    });
+
+    this.positionCenterRadio.addEventListener('change', () => {
+      this.toggleCustomPositionGroup();
+    });
+
+    this.positionCustomRadio.addEventListener('change', () => {
+      this.toggleCustomPositionGroup();
+    });
+
+    this.pastilleDisplaySelect.addEventListener('change', () => {
+      this.updateDisplayInfo();
+    });
+
+    [this.pastilleXInput, this.pastilleYInput].forEach(input => {
+      input.addEventListener('input', () => {
+        this.validatePositionInputs();
+      });
+    });
+
+    settingsIpcRenderer.on('pastille-position-loaded', (event: any, position: any) => {
+      this.currentPastillePosition = position;
+      this.populatePastillePositionForm();
+    });
+
+    settingsIpcRenderer.on('display-info-loaded', (event: any, displays: any[]) => {
+      this.populateDisplayOptions(displays);
     });
   }
 
@@ -1476,6 +1544,232 @@ class SettingsRenderer {
         spinner.style.display = 'none';
       }
     }
+  }
+
+  private loadPastillePositionSettings() {
+    console.log('📍 Loading pastille position settings...');
+    try {
+      // Load current position from main process
+      settingsIpcRenderer.send('load-pastille-position');
+      
+      // Load display information
+      settingsIpcRenderer.send('load-display-info');
+      
+      this.updatePastillePositionStatus();
+    } catch (error) {
+      console.error('❌ Failed to load pastille position settings:', error);
+      this.pastillePositionDetails.textContent = 'Error loading position settings';
+    }
+  }
+
+  // Pastille Position Methods
+  private populatePastillePositionForm() {
+    if (!this.currentPastillePosition) return;
+
+    console.log('🔄 Populating pastille position form:', this.currentPastillePosition);
+
+    // Set display selection
+    if (this.currentPastillePosition.displayMode) {
+      this.pastilleDisplaySelect.value = this.currentPastillePosition.displayMode;
+    }
+
+    // Set position mode
+    if (this.currentPastillePosition.mode === 'custom') {
+      this.positionCustomRadio.checked = true;
+      this.positionCenterRadio.checked = false;
+      this.customPositionGroup.style.display = 'block';
+      
+      // Set custom coordinates
+      if (this.currentPastillePosition.x !== undefined) {
+        this.pastilleXInput.value = this.currentPastillePosition.x.toString();
+      }
+      if (this.currentPastillePosition.y !== undefined) {
+        this.pastilleYInput.value = this.currentPastillePosition.y.toString();
+      }
+    } else {
+      this.positionCenterRadio.checked = true;
+      this.positionCustomRadio.checked = false;
+      this.customPositionGroup.style.display = 'none';
+    }
+
+    this.updatePastillePositionStatus();
+  }
+
+  private populateDisplayOptions(displays: any[]) {
+    console.log('🖥️ Populating display options:', displays);
+
+    // Clear existing options except default ones
+    const existingOptions = Array.from(this.pastilleDisplaySelect.options);
+    existingOptions.slice(2).forEach(option => option.remove());
+
+    // Add display options
+    displays.forEach((display, index) => {
+      const option = document.createElement('option');
+      option.value = `display-${display.id}`;
+      option.textContent = `🖥️ Display ${index + 1} (${display.bounds.width}×${display.bounds.height})`;
+      this.pastilleDisplaySelect.appendChild(option);
+    });
+
+    // Update help text
+    if (displays.length > 1) {
+      this.displayHelp.textContent = `${displays.length} displays detected. Choose which one to use for the pastille.`;
+    } else {
+      this.displayHelp.textContent = 'Single display detected. Auto-detect and Primary will use the same display.';
+    }
+  }
+
+  private toggleCustomPositionGroup() {
+    if (this.positionCustomRadio.checked) {
+      this.customPositionGroup.style.display = 'block';
+    } else {
+      this.customPositionGroup.style.display = 'none';
+    }
+    this.validatePositionInputs();
+  }
+
+  private validatePositionInputs() {
+    const x = parseInt(this.pastilleXInput.value) || 0;
+    const y = parseInt(this.pastilleYInput.value) || 0;
+    
+    // Basic validation - ensure values are positive
+    const isValid = x >= 0 && y >= 0;
+    
+    this.applyPositionBtn.disabled = !isValid;
+    
+    if (this.positionCustomRadio.checked && isValid) {
+      this.updatePastillePositionStatus();
+    }
+  }
+
+  private updateDisplayInfo() {
+    // Request updated display info when selection changes
+    settingsIpcRenderer.send('load-display-info');
+    this.updatePastillePositionStatus();
+  }
+
+  private updatePastillePositionStatus() {
+    let statusText = '';
+    
+    if (this.currentPastillePosition) {
+      const pos = this.currentPastillePosition;
+      statusText += `Current position: ${pos.x || 'center'}, ${pos.y || 'center'}\n`;
+      statusText += `Display mode: ${pos.displayMode || 'auto'}\n`;
+      statusText += `Position mode: ${pos.mode || 'center'}`;
+      
+      if (pos.displayId) {
+        statusText += `\nDisplay ID: ${pos.displayId}`;
+      }
+    } else {
+      statusText = 'Using default center position';
+    }
+    
+    this.pastillePositionDetails.textContent = statusText;
+    console.log('📊 Updated pastille position status:', statusText);
+  }
+
+  private async previewPastillePosition() {
+    console.log('👁️ Previewing pastille position...');
+    
+    const positionConfig = this.getCurrentPositionConfig();
+    
+    this.previewPositionBtn.textContent = '👁️ Previewing...';
+    this.previewPositionBtn.disabled = true;
+    
+    try {
+      // Send preview request to main process
+      settingsIpcRenderer.send('preview-pastille-position', positionConfig);
+      
+      // Reset button after preview
+      setTimeout(() => {
+        this.previewPositionBtn.textContent = '👁️ Preview Position';
+        this.previewPositionBtn.disabled = false;
+      }, 2000);
+    } catch (error) {
+      console.error('❌ Failed to preview position:', error);
+      this.previewPositionBtn.textContent = '❌ Error';
+      setTimeout(() => {
+        this.previewPositionBtn.textContent = '👁️ Preview Position';
+        this.previewPositionBtn.disabled = false;
+      }, 2000);
+    }
+  }
+
+  private async resetPastillePosition() {
+    console.log('🔄 Resetting pastille position to center...');
+    
+    this.resetPositionBtn.textContent = '🔄 Resetting...';
+    this.resetPositionBtn.disabled = true;
+    
+    try {
+      // Reset to center mode
+      this.positionCenterRadio.checked = true;
+      this.positionCustomRadio.checked = false;
+      this.customPositionGroup.style.display = 'none';
+      this.pastilleDisplaySelect.value = 'auto';
+      
+      // Clear custom coordinates
+      this.pastilleXInput.value = '';
+      this.pastilleYInput.value = '';
+      
+      // Send reset request to main process
+      settingsIpcRenderer.send('reset-pastille-position');
+      
+      setTimeout(() => {
+        this.resetPositionBtn.textContent = '🔄 Reset to Center';
+        this.resetPositionBtn.disabled = false;
+        this.updatePastillePositionStatus();
+      }, 1000);
+    } catch (error) {
+      console.error('❌ Failed to reset position:', error);
+      this.resetPositionBtn.textContent = '❌ Error';
+      setTimeout(() => {
+        this.resetPositionBtn.textContent = '🔄 Reset to Center';
+        this.resetPositionBtn.disabled = false;
+      }, 2000);
+    }
+  }
+
+  private async applyPastillePosition() {
+    console.log('✅ Applying pastille position...');
+    
+    const positionConfig = this.getCurrentPositionConfig();
+    
+    this.applyPositionBtn.textContent = '⏳ Applying...';
+    this.applyPositionBtn.disabled = true;
+    
+    try {
+      // Send apply request to main process
+      settingsIpcRenderer.send('apply-pastille-position', positionConfig);
+      
+      this.applyPositionBtn.textContent = '✅ Applied!';
+      setTimeout(() => {
+        this.applyPositionBtn.textContent = '✅ Apply Position';
+        this.applyPositionBtn.disabled = false;
+      }, 2000);
+      
+      this.updatePastillePositionStatus();
+    } catch (error) {
+      console.error('❌ Failed to apply position:', error);
+      this.applyPositionBtn.textContent = '❌ Error';
+      setTimeout(() => {
+        this.applyPositionBtn.textContent = '✅ Apply Position';
+        this.applyPositionBtn.disabled = false;
+      }, 2000);
+    }
+  }
+
+  private getCurrentPositionConfig() {
+    const config: any = {
+      displayMode: this.pastilleDisplaySelect.value,
+      mode: this.positionCenterRadio.checked ? 'center' : 'custom'
+    };
+    
+    if (config.mode === 'custom') {
+      config.x = parseInt(this.pastilleXInput.value) || 0;
+      config.y = parseInt(this.pastilleYInput.value) || 0;
+    }
+    
+    return config;
   }
 }
 

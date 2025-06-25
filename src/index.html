@@ -2,11 +2,563 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Hello World!</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaKeyAI - Welcome</title>
+    <link rel="stylesheet" href="/shared-styles.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-family);
+            background: transparent;
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
 
+        .welcome-window {
+            /* Floating glass window like the pastille */
+            background: var(--glass-dark);
+            backdrop-filter: blur(30px) saturate(120%);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-glass);
+            width: 600px;
+            height: 600px;
+            position: relative;
+            overflow: hidden;
+            animation: floatIn 1s ease-out;
+            
+            /* Make it draggable */
+            -webkit-app-region: drag;
+        }
+
+        .welcome-window::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(
+                from 0deg,
+                transparent,
+                rgba(79, 172, 254, 0.1),
+                transparent,
+                rgba(79, 172, 254, 0.1),
+                transparent
+            );
+            animation: rotate 20s linear infinite;
+            z-index: -1;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes floatIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        /* Traffic light buttons like macOS */
+        .traffic-lights {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 8px;
+            z-index: 100;
+            -webkit-app-region: no-drag;
+        }
+
+        .traffic-light {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: var(--transition-fast);
+            position: relative;
+            opacity: 0.7;
+        }
+
+        .traffic-light:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .traffic-light.close { background: #ff5f57; }
+        .traffic-light.minimize { background: #ffbd2e; }
+        .traffic-light.maximize { background: #28ca42; }
+
+        .traffic-light::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: var(--transition-fast);
+        }
+
+        .traffic-light:hover::before {
+            opacity: 1;
+        }
+
+        .traffic-light.close:hover::before {
+            content: '×';
+            color: #900;
+            font-weight: bold;
+            font-size: 10px;
+        }
+
+        .traffic-light.minimize:hover::before {
+            content: '−';
+            color: #963;
+            font-weight: bold;
+            font-size: 10px;
+        }
+
+        .traffic-light.maximize:hover::before {
+            content: '+';
+            color: #090;
+            font-weight: bold;
+            font-size: 8px;
+        }
+
+        /* Content container */
+        .content {
+            padding: 60px 40px 40px 40px;
+            height: calc(100% - 100px);
+            display: flex;
+            flex-direction: column;
+            -webkit-app-region: no-drag;
+        }
+
+        /* Blue orb logo like the pastille */
+        .logo {
+            font-size: 4rem;
+            margin-bottom: var(--space-lg);
+            text-align: center;
+            animation: float 3s ease-in-out infinite;
+            filter: drop-shadow(0 0 20px var(--color-primary));
+            position: relative;
+        }
+
+        .logo::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle, var(--color-primary) 0%, var(--color-primary-end) 70%, transparent 100%);
+            border-radius: 50%;
+            box-shadow: 
+                0 0 30px var(--color-primary),
+                0 0 60px var(--color-primary-end),
+                inset 0 0 20px rgba(255,255,255,0.3);
+            animation: orbPulse 2s ease-in-out infinite;
+        }
+
+        .logo::after {
+            content: '🔵';
+            position: relative;
+            z-index: 1;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        @keyframes orbPulse {
+            0%, 100% { 
+                transform: translate(-50%, -50%) scale(1);
+                box-shadow: 
+                    0 0 30px var(--color-primary),
+                    0 0 60px var(--color-primary-end);
+            }
+            50% { 
+                transform: translate(-50%, -50%) scale(1.1);
+                box-shadow: 
+                    0 0 40px var(--color-primary),
+                    0 0 80px var(--color-primary-end),
+                    0 0 100px rgba(79, 172, 254, 0.4);
+            }
+        }
+
+        .title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-align: center;
+            margin: 0 0 var(--space-sm) 0;
+            background: var(--gradient-primary);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: gradientShift 3s ease-in-out infinite;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: var(--space-xl);
+            opacity: 0;
+            animation: fadeIn 1s ease-out 0.5s forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Feature cards grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-md);
+            flex: 1;
+            opacity: 0;
+            animation: fadeIn 1s ease-out 1s forwards;
+        }
+
+        .feature-card {
+            background: var(--glass-medium);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            transition: var(--transition-normal);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(79, 172, 254, 0.1), transparent);
+            transition: var(--transition-normal);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--color-primary);
+            box-shadow: 
+                var(--shadow-glass),
+                0 0 20px rgba(79, 172, 254, 0.3);
+        }
+
+        .feature-card:hover::before {
+            left: 100%;
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: var(--space-sm);
+            animation: pulse 2s ease-in-out infinite;
+            filter: drop-shadow(0 0 10px var(--color-primary));
+        }
+
+        .feature-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: var(--space-xs);
+        }
+
+        .feature-description {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+            flex: 1;
+        }
+
+        /* Action buttons */
+        .actions {
+            display: flex;
+            gap: var(--space-md);
+            justify-content: center;
+            margin-top: var(--space-lg);
+            opacity: 0;
+            animation: fadeIn 1s ease-out 1.5s forwards;
+        }
+
+        .action-btn {
+            background: var(--gradient-primary);
+            color: var(--text-primary);
+            border: none;
+            padding: var(--space-sm) var(--space-lg);
+            border-radius: var(--radius-lg);
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition-normal);
+            box-shadow: var(--shadow-primary);
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-xs);
+            position: relative;
+            overflow: hidden;
+            background-size: 200% 200%;
+            animation: gradientShift 3s ease-in-out infinite;
+        }
+
+        .action-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+            transition: all 0.6s ease;
+            transform: translate(-50%, -50%);
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-primary-hover);
+        }
+
+        .action-btn:hover::before {
+            width: 200px;
+            height: 200px;
+        }
+
+        /* Floating sparkles like in the pastille */
+        .sparkles {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .sparkle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--color-primary);
+            border-radius: 50%;
+            opacity: 0;
+            animation: sparkleFloat 6s ease-in-out infinite;
+            box-shadow: 0 0 10px var(--color-primary);
+        }
+
+        @keyframes sparkleFloat {
+            0%, 100% { 
+                opacity: 0;
+                transform: translateY(0) scale(0);
+            }
+            20% {
+                opacity: 1;
+                transform: translateY(-20px) scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: translateY(-40px) scale(1.2);
+            }
+            80% {
+                opacity: 1;
+                transform: translateY(-30px) scale(0.8);
+            }
+        }
+
+        .sparkle:nth-child(1) { top: 80%; left: 20%; animation-delay: 0s; }
+        .sparkle:nth-child(2) { top: 70%; left: 60%; animation-delay: 1s; }
+        .sparkle:nth-child(3) { top: 85%; left: 80%; animation-delay: 2s; }
+        .sparkle:nth-child(4) { top: 75%; left: 40%; animation-delay: 3s; }
+        .sparkle:nth-child(5) { top: 90%; left: 10%; animation-delay: 4s; }
+        .sparkle:nth-child(6) { top: 65%; left: 90%; animation-delay: 5s; }
+
+        .version-info {
+            position: absolute;
+            bottom: 15px;
+            right: 20px;
+            font-size: 0.7rem;
+            color: var(--text-very-muted);
+            opacity: 0;
+            animation: fadeIn 1s ease-out 2s forwards;
+        }
+
+        /* Pulse animation for icons */
+        @keyframes pulse {
+            0%, 100% { 
+                transform: scale(1);
+                filter: drop-shadow(0 0 10px var(--color-primary));
+            }
+            50% { 
+                transform: scale(1.05);
+                filter: drop-shadow(0 0 15px var(--color-primary));
+            }
+        }
+    </style>
   </head>
   <body>
-    <h1>💖 Hello World!</h1>
-    <p>Welcome to your Electron application.</p>
+    <div class="welcome-window">
+        <!-- Traffic light buttons -->
+        <div class="traffic-lights">
+            <div class="traffic-light close" onclick="closeWelcome()"></div>
+            <div class="traffic-light minimize" onclick="minimizeWelcome()"></div>
+            <div class="traffic-light maximize" onclick="maximizeWelcome()"></div>
+        </div>
+
+        <!-- Floating sparkles like the pastille -->
+        <div class="sparkles">
+            <div class="sparkle"></div>
+            <div class="sparkle"></div>
+            <div class="sparkle"></div>
+            <div class="sparkle"></div>
+            <div class="sparkle"></div>
+            <div class="sparkle"></div>
+        </div>
+
+        <div class="content">
+            <div class="logo"></div>
+            <h1 class="title">Welcome to MetaKeyAI</h1>
+            <p class="subtitle">Your AI-powered clipboard companion for seamless productivity</p>
+
+            <div class="features-grid">
+                <div class="feature-card" onclick="openSettings()">
+                    <span class="feature-icon">⚙️</span>
+                    <div class="feature-title">Settings</div>
+                    <div class="feature-description">Configure your AI models, microphone, and pastille position</div>
+                </div>
+
+                <div class="feature-card" onclick="openSpellBook()">
+                    <span class="feature-icon">🧙‍♂️</span>
+                    <div class="feature-title">Spell Book</div>
+                    <div class="feature-description">Create and manage Python spells for custom automation</div>
+                </div>
+
+                <div class="feature-card" onclick="showShortcuts()">
+                    <span class="feature-icon">⌨️</span>
+                    <div class="feature-title">Shortcuts</div>
+                    <div class="feature-description">
+                        <strong>Ctrl+Alt+W</strong> - Voice Record<br>
+                        <strong>Ctrl+Alt+Q</strong> - AI Quick Edit<br>
+                        <strong>Ctrl+Alt+E</strong> - Text-to-Speech
+                    </div>
+                </div>
+
+                <div class="feature-card" onclick="startTour()">
+                    <span class="feature-icon">🎯</span>
+                    <div class="feature-title">Quick Start</div>
+                    <div class="feature-description">Learn how to use MetaKeyAI's powerful features</div>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="action-btn" onclick="closeWelcome()">
+                    <span>✨</span>
+                    Get Started
+                </button>
+                <button class="action-btn" onclick="openSettings()">
+                    <span>⚙️</span>
+                    Open Settings
+                </button>
+            </div>
+        </div>
+
+        <div class="version-info" id="version-info">
+            MetaKeyAI v0.0.38
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        function openSettings() {
+            ipcRenderer.send('open-settings');
+        }
+
+        function openSpellBook() {
+            ipcRenderer.send('open-spell-book');
+        }
+
+        function showShortcuts() {
+            alert(`MetaKeyAI Keyboard Shortcuts:
+
+🎤 Voice Recording: Ctrl+Alt+W
+🤖 AI Quick Edit: Ctrl+Alt+Q  
+🔊 Text-to-Speech: Ctrl+Alt+E
+📋 Show Clipboard: Ctrl+Alt+C
+🧙‍♂️ Spell Book: Ctrl+Alt+S
+
+Double-click the pastille to edit clipboard content!`);
+        }
+
+        function startTour() {
+            alert(`Welcome to MetaKeyAI! 🚀
+
+1. 📍 Look for the blue pastille - your AI companion
+2. 🎤 Press Ctrl+Alt+W to record voice notes
+3. 🤖 Use Ctrl+Alt+Q for AI-powered text editing
+4. 🔊 Press Ctrl+Alt+E to hear text read aloud
+5. 🧙‍♂️ Create Python spells for custom automation
+
+The pastille shows your clipboard history and provides quick access to all features!`);
+        }
+
+        function closeWelcome() {
+            window.close();
+        }
+
+        function minimizeWelcome() {
+            ipcRenderer.send('minimize-main-window');
+        }
+
+        function maximizeWelcome() {
+            ipcRenderer.send('toggle-maximize-main-window');
+        }
+
+        // Auto-close after 30 seconds if no interaction
+        let autoCloseTimer = setTimeout(() => {
+            closeWelcome();
+        }, 30000);
+
+        // Cancel auto-close on any interaction
+        document.addEventListener('click', () => {
+            clearTimeout(autoCloseTimer);
+        });
+
+        // Load version info
+        ipcRenderer.invoke('get-app-version').then(version => {
+            document.getElementById('version-info').textContent = `MetaKeyAI v${version}`;
+        }).catch(() => {
+            // Fallback if version not available
+        });
+    </script>
   </body>
 </html>

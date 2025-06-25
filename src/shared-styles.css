@@ -645,4 +645,152 @@ a.metakey-btn {
 .font-mono { font-family: var(--font-mono); }
 .opacity-50 { opacity: 0.5; }
 .opacity-70 { opacity: 0.7; }
-.opacity-90 { opacity: 0.9; } 
+.opacity-90 { opacity: 0.9; }
+
+/* Shared Window Utilities */
+.window-frame {
+    background: var(--glass-dark);
+    backdrop-filter: blur(30px) saturate(120%);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-glass);
+    position: relative;
+    overflow: hidden;
+    -webkit-app-region: drag;
+}
+
+.window-frame.low-transparency {
+    background: rgba(15, 15, 35, 0.85);
+    backdrop-filter: blur(20px) saturate(110%);
+}
+
+.window-frame.medium-transparency {
+    background: var(--glass-dark);
+    backdrop-filter: blur(30px) saturate(120%);
+}
+
+.window-frame.high-transparency {
+    background: rgba(15, 15, 35, 0.3);
+    backdrop-filter: blur(40px) saturate(130%);
+}
+
+/* Traffic Light Buttons - Shared Component */
+.traffic-lights {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+    -webkit-app-region: no-drag;
+}
+
+.traffic-light {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    position: relative;
+    opacity: 0.7;
+}
+
+.traffic-light:hover {
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.traffic-light.close { background: #ff5f57; }
+.traffic-light.minimize { background: #ffbd2e; }
+.traffic-light.maximize { background: #28ca42; }
+
+.traffic-light::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: var(--transition-fast);
+}
+
+.traffic-light:hover::before {
+    opacity: 1;
+}
+
+.traffic-light.close:hover::before {
+    content: '×';
+    color: #900;
+    font-weight: bold;
+    font-size: 10px;
+}
+
+.traffic-light.minimize:hover::before {
+    content: '−';
+    color: #963;
+    font-weight: bold;
+    font-size: 10px;
+}
+
+.traffic-light.maximize:hover::before {
+    content: '+';
+    color: #090;
+    font-weight: bold;
+    font-size: 8px;
+}
+
+/* Draggable content areas */
+.window-content {
+    -webkit-app-region: no-drag;
+    padding: 60px 30px 30px 30px;
+    height: calc(100% - 90px);
+    box-sizing: border-box;
+}
+
+/* Floating sparkles utility */
+.sparkles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.sparkle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: var(--color-primary);
+    border-radius: 50%;
+    opacity: 0;
+    animation: sparkleFloat 6s ease-in-out infinite;
+    box-shadow: 0 0 10px var(--color-primary);
+}
+
+@keyframes sparkleFloat {
+    0%, 100% { 
+        opacity: 0;
+        transform: translateY(0) scale(0);
+    }
+    20% {
+        opacity: 1;
+        transform: translateY(-20px) scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: translateY(-40px) scale(1.2);
+    }
+    80% {
+        opacity: 1;
+        transform: translateY(-30px) scale(0.8);
+    }
+}
+
+.sparkle:nth-child(1) { top: 80%; left: 20%; animation-delay: 0s; }
+.sparkle:nth-child(2) { top: 70%; left: 60%; animation-delay: 1s; }
+.sparkle:nth-child(3) { top: 85%; left: 80%; animation-delay: 2s; }
+.sparkle:nth-child(4) { top: 75%; left: 40%; animation-delay: 3s; }
+.sparkle:nth-child(5) { top: 90%; left: 10%; animation-delay: 4s; }
+.sparkle:nth-child(6) { top: 65%; left: 90%; animation-delay: 5s; } 

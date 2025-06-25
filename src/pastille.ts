@@ -113,15 +113,18 @@ class PastilleRenderer {
 
     // Listen for show/hide commands
     pastilleIpcRenderer.on('show-pastille', () => {
+      console.log('👁️ Pastille renderer: showing pastille');
       this.show();
     });
 
     pastilleIpcRenderer.on('hide-pastille', () => {
+      console.log('🙈 Pastille renderer: hiding pastille');
       this.hide();
     });
 
     // Generic notification
-    pastilleIpcRenderer.on('show-message', (_: any, message: string) => {
+    pastilleIpcRenderer.on('show-message', (event: any, message: string) => {
+      console.log('🔔 Pastille renderer: showing message:', message);
       this.showMessage(message);
     });
 
@@ -185,6 +188,12 @@ class PastilleRenderer {
       
       // Set indicator to error blue state  
       this.setIndicatorState('error');
+    });
+
+    // Listen for IPC messages from main process
+    pastilleIpcRenderer.on('highlight-pastille', () => {
+      console.log('✨ Pastille renderer: highlighting pastille for preview');
+      this.highlightForPreview();
     });
   }
 
@@ -390,17 +399,24 @@ class PastilleRenderer {
   }
 
   private handleDoubleClick() {
+    console.log('🖱️ 🚀 DOUBLE-CLICK: Double-click detected!');
+    console.log('🖱️ 🔍 DOUBLE-CLICK: Current expanded state:', this.expanded);
+    
     // Clear any existing timeout to prevent multiple rapid clicks
     if (this.doubleClickTimeout) {
       clearTimeout(this.doubleClickTimeout);
       this.doubleClickTimeout = null;
+      console.log('🖱️ ⏱️ DOUBLE-CLICK: Cleared existing timeout');
     }
 
     // Add a small delay to ensure the click is processed properly
     this.doubleClickTimeout = setTimeout(() => {
+      console.log('🖱️ ▶️ DOUBLE-CLICK: Timeout executed, expanded state:', this.expanded);
       if (this.expanded) {
+        console.log('🖱️ 📕 DOUBLE-CLICK: Collapsing...');
         this.collapse();
       } else {
+        console.log('🖱️ 📖 DOUBLE-CLICK: Expanding...');
         this.expand();
       }
     }, 50);
@@ -424,13 +440,11 @@ class PastilleRenderer {
       // Ensure entry.text is a string before using substring
       const safeText = typeof entry.text === 'string' ? entry.text : String(entry.text || '');
       
-      // Truncate long text for display
-      const displayText = safeText.length > 80 
-        ? safeText.substring(0, 80) + '...' 
-        : safeText;
+      // Apply adaptive text sizing and get display text
+      const { displayText, sizeClass } = this.getAdaptiveDisplayText(safeText);
       
       this.contentElement.textContent = displayText;
-      this.contentElement.className = 'content';
+      this.contentElement.className = `content ${sizeClass}`;
       this.counterElement.textContent = `${currentIndex + 1}/${totalCount}`;
     }
 
@@ -445,6 +459,42 @@ class PastilleRenderer {
         this.handleEntryChangeWhileEditing(entry);
       }
     }
+  }
+
+  private getAdaptiveDisplayText(text: string): { displayText: string, sizeClass: string } {
+    // Try different truncation lengths based on text size
+    const baseLength = 40;  // Base length for short text
+    let maxLength = baseLength;
+    let sizeClass = 'text-short';
+    
+    // Calculate display length based on fixed pastille width (520px)
+    // Approximate character widths for different font sizes
+    const charWidths: Record<string, number> = {
+      'text-short': 9,     // 0.95rem ≈ 15px → ~9px per char
+      'text-medium': 8,    // 0.85rem ≈ 13px → ~8px per char  
+      'text-long': 7,      // 0.75rem ≈ 12px → ~7px per char
+      'text-very-long': 6, // 0.65rem ≈ 10px → ~6px per char
+      'text-extreme': 5    // 0.55rem ≈ 9px → ~5px per char
+    };
+    
+    // Available width for text (520px total - 40px padding - 20px for indicator - 40px for counter - 20px for gaps)
+    const availableWidth = 400;
+    
+    // Try each size class to find the best fit
+    const sizeOptions: (keyof typeof charWidths)[] = ['text-short', 'text-medium', 'text-long', 'text-very-long', 'text-extreme'];
+    
+    for (const size of sizeOptions) {
+      const maxChars = Math.floor(availableWidth / charWidths[size]);
+      if (text.length <= maxChars) {
+        return { displayText: text, sizeClass: size };
+      }
+      maxLength = maxChars;
+      sizeClass = size;
+    }
+    
+    // If text is still too long even at smallest size, truncate with ellipsis
+    const truncatedText = text.substring(0, maxLength - 3) + '...';
+    return { displayText: truncatedText, sizeClass: sizeClass };
   }
 
   private handleEntryChangeWhileEditing(newEntry: ClipboardEntry | null) {
@@ -479,8 +529,11 @@ class PastilleRenderer {
     this.clearProcessing();
     this.isRecording = false;
     this.waveCanvas.classList.add('hidden');
-    this.contentElement.textContent = message;
-    this.contentElement.className = 'content';
+    
+    // Apply adaptive text sizing to message
+    const { displayText, sizeClass } = this.getAdaptiveDisplayText(message);
+    this.contentElement.textContent = displayText;
+    this.contentElement.className = `content ${sizeClass}`;
     this.counterElement.textContent = '';
     this.show();
   }
@@ -491,9 +544,11 @@ class PastilleRenderer {
     this.clearProcessing();
     this.isRecording = true;
     
-    // Update collapsed state
+    // Update collapsed state with adaptive sizing
     this.waveCanvas.classList.remove('hidden');
-    this.contentElement.textContent = message;
+    const { displayText, sizeClass } = this.getAdaptiveDisplayText(message);
+    this.contentElement.textContent = displayText;
+    this.contentElement.className = `content ${sizeClass}`;
     this.counterElement.textContent = '';
     
     // Update expanded state control bar
@@ -550,9 +605,11 @@ class PastilleRenderer {
     console.log('⏳ Pastille renderer: show processing');
     this.isRecording = false;
     
-    // Update collapsed state
+    // Update collapsed state with adaptive sizing
     this.waveCanvas.classList.add('hidden');
-    this.contentElement.textContent = message;
+    const { displayText, sizeClass } = this.getAdaptiveDisplayText(message);
+    this.contentElement.textContent = displayText;
+    this.contentElement.className = `content ${sizeClass}`;
     this.counterElement.textContent = '';
     
     // Update expanded state
@@ -563,9 +620,12 @@ class PastilleRenderer {
     let dots = 0;
     this.processingInterval = setInterval(() => {
       dots = (dots + 1) % 4;
-      this.contentElement.textContent = message + '.'.repeat(dots);
+      const messageWithDots = message + '.'.repeat(dots);
+      const { displayText: animatedDisplayText, sizeClass: animatedSizeClass } = this.getAdaptiveDisplayText(messageWithDots);
+      this.contentElement.textContent = animatedDisplayText;
+      this.contentElement.className = `content ${animatedSizeClass}`;
       if (this.expanded) {
-        this.controlStatus.textContent = message + '.'.repeat(dots);
+        this.controlStatus.textContent = messageWithDots;
       }
     }, 500);
 
@@ -584,25 +644,30 @@ class PastilleRenderer {
     console.log('✨ Pastille renderer: show spell launch');
     this.isRecording = false;
     
-    // Update collapsed state
+    // Update collapsed state with adaptive sizing
     this.waveCanvas.classList.add('hidden');
-    this.contentElement.textContent = message;
-    this.contentElement.style.color = '#9c27b0'; // Purple for magic
+    const { displayText, sizeClass } = this.getAdaptiveDisplayText(message);
+    this.contentElement.textContent = displayText;
+    this.contentElement.className = `content ${sizeClass}`;
+    this.contentElement.style.color = 'var(--color-primary)'; // Blue for magic consistency
     this.counterElement.textContent = '';
     
     // Update expanded state
     this.controlWaveform.classList.add('hidden');
     this.updateControlBar();
 
-    // Add sparkle animation
+    // Add sparkle animation with adaptive sizing
     this.clearProcessing();
     let sparkleCount = 0;
     this.processingInterval = setInterval(() => {
       sparkleCount = (sparkleCount + 1) % 4;
       const sparkles = '✨'.repeat(sparkleCount + 1);
-      this.contentElement.textContent = `${sparkles} ${message} ${sparkles}`;
+      const sparklyMessage = `${sparkles} ${message} ${sparkles}`;
+      const { displayText: sparklyDisplayText, sizeClass: sparklySizeClass } = this.getAdaptiveDisplayText(sparklyMessage);
+      this.contentElement.textContent = sparklyDisplayText;
+      this.contentElement.className = `content ${sparklySizeClass}`;
       if (this.expanded) {
-        this.controlStatus.textContent = `${sparkles} ${message} ${sparkles}`;
+        this.controlStatus.textContent = sparklyMessage;
       }
     }, 300);
 
@@ -627,9 +692,11 @@ class PastilleRenderer {
       resultText = String(result || '');
     }
     
-    // Update collapsed state with magical styling
+    // Update collapsed state with magical styling and adaptive sizing
     this.waveCanvas.classList.add('hidden');
-    this.contentElement.textContent = resultText.substring(0, 100) + (resultText.length > 100 ? '...' : '');
+    const { displayText, sizeClass } = this.getAdaptiveDisplayText(resultText);
+    this.contentElement.textContent = displayText;
+    this.contentElement.className = `content ${sizeClass}`;
     this.contentElement.style.color = 'var(--color-primary)'; // Blue for success
     this.counterElement.textContent = `✨ Spell completed (${resultText.length} chars)`;
     
@@ -712,13 +779,16 @@ class PastilleRenderer {
   private expand() {
     if (this.expanded) return;
     
-    console.log('📖 Expanding pastille editor');
+    console.log('📖 🚀 EXPAND: Starting pastille editor expansion');
+    console.log('📖 🔍 EXPAND: Current window size before expansion:', window.innerWidth, 'x', window.innerHeight);
+    
     this.expanded = true;
     this.isEditing = true;
     this.hasExplicitlySaved = false; // Reset save flag
     
     // Store original text
     this.originalText = this.currentEntry?.text || '';
+    console.log('📖 📝 EXPAND: Original text length:', this.originalText.length);
     
     // Notify main process that edit mode has started
     pastilleIpcRenderer.send('edit-mode-start', {
@@ -729,19 +799,43 @@ class PastilleRenderer {
     // Set up editor
     this.editor.value = this.originalText;
     this.updateEditorStats();
+    console.log('📖 📝 EXPAND: Editor value set, textarea element:', this.editor);
     
     // Add CSS classes
+    console.log('📖 🎨 EXPAND: Adding CSS classes...');
     this.pastilleElement.classList.add('expanded');
     this.backdrop.classList.remove('hidden');
+    console.log('📖 🎨 EXPAND: CSS classes added. Pastille classes:', this.pastilleElement.className);
     
     // Disable drag on main element while editing
     this.pastilleElement.style.setProperty('-webkit-app-region', 'no-drag');
 
     // Request main process to handle window expansion
+    console.log('📖 🔗 EXPAND: Sending expand-pastille IPC message...');
     pastilleIpcRenderer.send('expand-pastille');
+    
+    // Fallback: Also try to trigger resize from renderer side after a short delay
+    setTimeout(() => {
+      console.log('📖 🔄 EXPAND: Fallback - checking if window resized...');
+      console.log('📖 🔍 EXPAND: Window size check:', window.innerWidth, 'x', window.innerHeight);
+      if (window.innerHeight < 400) {
+        console.log('📖 ⚠️ EXPAND: Window still small, trying fallback resize...');
+        // Try to force window resize via webContents
+        pastilleIpcRenderer.send('force-window-resize', { 
+          width: Math.round(window.screen.availWidth * 0.8), 
+          height: Math.round(window.screen.availHeight * 0.8) 
+        });
+      }
+    }, 200);
 
     // Focus editor after animation
     setTimeout(() => {
+      console.log('📖 🎯 EXPAND: Focusing editor and setting cursor position...');
+      console.log('📖 🔍 EXPAND: Window size after expansion:', window.innerWidth, 'x', window.innerHeight);
+      console.log('📖 🔍 EXPAND: Editor container display:', getComputedStyle(document.querySelector('.editor-container')).display);
+      console.log('📖 🔍 EXPAND: Editor visibility:', getComputedStyle(this.editor).visibility);
+      console.log('📖 🔍 EXPAND: Editor dimensions:', this.editor.offsetWidth, 'x', this.editor.offsetHeight);
+      
       this.editor.focus();
       this.editor.setSelectionRange(this.editor.value.length, this.editor.value.length);
     }, 150);
@@ -983,6 +1077,22 @@ class PastilleRenderer {
         // Already cleaned up above
         break;
     }
+  }
+
+  private highlightForPreview() {
+    // Add a temporary highlight effect to make the pastille more visible during preview
+    const originalClasses = this.pastilleElement.className;
+    
+    // Add highlight CSS class
+    this.pastilleElement.classList.add('preview-highlight');
+    
+    // Force the pastille to be visible during preview
+    this.show();
+    
+    // Remove highlight after a short duration
+    setTimeout(() => {
+      this.pastilleElement.className = originalClasses;
+    }, 1500);
   }
 }
 

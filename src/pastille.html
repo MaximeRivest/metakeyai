@@ -34,18 +34,23 @@
             display: flex;
             align-items: center;
             gap: var(--space-md);
-            max-width: 480px;
+            /* Fixed size for collapsed state - centered in larger window */
+            width: 520px;
+            height: 50px;
+            min-width: 520px;
+            max-width: 520px;
+            min-height: 50px;
+            max-height: 50px;
             transition: var(--transition-bounce);
-            min-height: 40px;
             -webkit-app-region: drag;
             cursor: move;
             position: relative;
             overflow: hidden;
+            box-sizing: border-box;
         }
 
         .pastille:hover:not(.expanded) {
             background: var(--glass-light);
-            transform: scale(1.05);
             border-color: var(--border-accent);
             box-shadow: var(--shadow-primary);
             animation: magicalGlow 2s ease-in-out infinite;
@@ -87,6 +92,7 @@
             width: calc(100vw - 48px);
             height: calc(100vh - 48px);
             max-width: none;
+            max-height: none;
             border-radius: var(--radius-lg);
             padding: 0;
             flex-direction: column;
@@ -123,6 +129,30 @@
             flex: 1;
             -webkit-app-region: no-drag;
             transition: var(--transition-normal);
+            /* Adaptive text sizing */
+            font-size: inherit;
+            min-width: 0; /* Allows flex item to shrink below content size */
+        }
+
+        /* Adaptive font sizes based on content length */
+        .content.text-short {
+            font-size: 0.95rem;
+        }
+
+        .content.text-medium {
+            font-size: 0.85rem;
+        }
+
+        .content.text-long {
+            font-size: 0.75rem;
+        }
+
+        .content.text-very-long {
+            font-size: 0.65rem;
+        }
+
+        .content.text-extreme {
+            font-size: 0.55rem;
         }
 
         .pastille.expanded .content {
@@ -149,12 +179,10 @@
         .hidden {
             opacity: 0;
             pointer-events: none;
-            transform: scale(0.8) translateY(10px);
         }
         
         .pastille:not(.hidden) {
             opacity: 1;
-            transform: scale(1) translateY(0);
         }
 
         .wave {
@@ -431,6 +459,29 @@
         .backdrop.hidden { 
             opacity: 0;
             pointer-events: none;
+        }
+
+        /* Preview highlight effect for position preview */
+        .pastille.preview-highlight {
+            background: var(--color-primary) !important;
+            border: 2px solid rgba(255, 255, 255, 0.8) !important;
+            box-shadow: 
+                0 0 30px var(--color-primary),
+                0 0 60px var(--color-primary-end),
+                0 0 90px rgba(79, 172, 254, 0.6) !important;
+            animation: previewPulse 0.5s ease-in-out infinite !important;
+            transform: scale(1.1) !important;
+        }
+
+        @keyframes previewPulse {
+            0%, 100% { 
+                opacity: 1;
+                filter: brightness(1.2);
+            }
+            50% { 
+                opacity: 0.8;
+                filter: brightness(1.5);
+            }
         }
 
         /* Animations */

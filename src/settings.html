@@ -898,6 +898,82 @@
             </div>
         </div>
 
+        <!-- Pastille Position -->
+        <div class="section">
+            <div class="section-icon">📍</div>
+            <div class="section-title">📍 Pastille Position</div>
+            <div class="section-description">
+                Configure where the pastille appears on your screen and which monitor to use. Useful for multi-monitor setups.
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="pastille-display">Target Display</label>
+                <select id="pastille-display" class="form-select">
+                    <option value="auto">🖥️ Auto-detect (Current cursor position)</option>
+                    <option value="primary">🖥️ Primary Display</option>
+                </select>
+                <div class="form-help" id="display-help">
+                    Choose which monitor to show the pastille on. Additional displays will appear here when detected.
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Position Mode</label>
+                <div style="display: flex; gap: var(--space-sm); margin-bottom: var(--space-md);">
+                    <label style="display: flex; align-items: center; gap: var(--space-xs); cursor: pointer;">
+                        <input type="radio" name="position-mode" value="center" id="position-center" checked>
+                        <span>🎯 Center</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: var(--space-xs); cursor: pointer;">
+                        <input type="radio" name="position-mode" value="custom" id="position-custom">
+                        <span>📐 Custom Coordinates</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group" id="custom-position-group" style="display: none;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md);">
+                    <div>
+                        <label class="form-label" for="pastille-x">X Position (pixels)</label>
+                        <input type="number" id="pastille-x" class="form-input" placeholder="e.g. 100" min="0" max="9999" />
+                        <div class="form-help">Distance from left edge of chosen display</div>
+                    </div>
+                    <div>
+                        <label class="form-label" for="pastille-y">Y Position (pixels)</label>
+                        <input type="number" id="pastille-y" class="form-input" placeholder="e.g. 100" min="0" max="9999" />
+                        <div class="form-help">Distance from top edge of chosen display</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div id="pastille-position-status" style="padding: var(--space-md); background: var(--glass-dark); border-radius: var(--radius-md); border: 1px solid var(--border-light);">
+                    <div style="font-size: 0.9rem; font-weight: 500; margin-bottom: var(--space-sm);">📊 Current Status</div>
+                    <div id="pastille-position-details" style="font-size: 0.75rem; color: var(--text-muted);">Loading position information...</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div style="display: flex; gap: var(--space-sm); flex-wrap: wrap;">
+                    <button class="btn secondary" id="preview-position">👁️ Preview Position</button>
+                    <button class="btn secondary" id="reset-position">🔄 Reset to Center</button>
+                    <button class="btn primary" id="apply-position">✅ Apply Position</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <details style="background: var(--glass-dark); border-radius: var(--radius-md); padding: var(--space-md);">
+                    <summary style="cursor: pointer; font-weight: 500;">💡 Position Tips</summary>
+                    <div style="margin-top: var(--space-sm); font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
+                        <p><strong>Auto-detect:</strong> Pastille appears on whichever screen your cursor is currently on.</p>
+                        <p><strong>Primary Display:</strong> Always appears on your main monitor.</p>
+                        <p><strong>Custom Coordinates:</strong> Specify exact pixel position (0,0 = top-left corner of chosen display).</p>
+                        <p><strong>Multi-Monitor:</strong> Each display has its own coordinate system starting from (0,0).</p>
+                    </div>
+                </details>
+            </div>
+        </div>
+
         <!-- Python Setup -->
         <div class="section" id="python-setup-section">
             <div class="section-icon">🐍</div>
